@@ -1,8 +1,6 @@
 server:
   dynamicConfig:
-    matching.numTaskqueueReadPartitions:
-    - value: 5
+    frontend.rps:
+    - value: 50
       constraints: {}
-    matching.numTaskqueueWritePartitions:
-    - value: 5
-      constraints: {}
+
