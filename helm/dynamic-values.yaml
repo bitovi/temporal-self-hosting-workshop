@@ -3,3 +3,4 @@ server:
     frontend.rps:
     - value: 50
       constraints: {}
+
