@@ -1,5 +1,0 @@
-server:
-  dynamicConfig:
-    frontend.rps:
-    - value: 50
-      constraints: {}
