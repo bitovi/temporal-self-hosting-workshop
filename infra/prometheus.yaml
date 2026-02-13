@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'temporal-cluster-1'
+    static_configs:
+      - targets: ['cluster-1-frontend:7233', 'cluster-1-history:7234', 'cluster-1-matching:7235', 'cluster-1-worker:7239']
+
+  - job_name: 'temporal-cluster-2'
+    static_configs:
+      - targets: ['cluster-2-frontend:7233', 'cluster-2-history:7234', 'cluster-2-matching:7235', 'cluster-2-worker:7239']

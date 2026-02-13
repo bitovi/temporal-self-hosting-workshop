@@ -8,8 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /workspaces/install
 
-RUN mkdir -p /workspaces/.kube \
-    && chmod 777 /workspaces/.kube
 RUN mkdir -p /workspaces/.temporal \
     && chmod 777 /workspaces/.temporal
 
@@ -24,18 +22,12 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 ENV GOPATH="/go"
 ENV PATH="${GOPATH}/bin:${PATH}"
 
-RUN curl -fsSL -o /usr/local/bin/kubectl \
-      "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/${TARGETARCH}/kubectl" \
- && chmod +x /usr/local/bin/kubectl
+# Install docker-compose (works with Podman via podman-docker)
+RUN curl -fsSL "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-${TARGETARCH}" \
+    -o /usr/local/bin/docker-compose \
+ && chmod +x /usr/local/bin/docker-compose
 
-# Install k3d
-RUN curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
-
-# Install Helm
-RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \
-    && chmod 700 get_helm.sh \
-    && ./get_helm.sh
-
+# Install Temporal CLI
 RUN curl -fsSL "https://temporal.download/cli/archive/latest?platform=linux&arch=${TARGETARCH}" \
     | tar -xz -C /usr/local/bin temporal \
     && chmod +x /usr/local/bin/temporal

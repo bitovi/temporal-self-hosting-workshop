@@ -1,36 +1,12 @@
-# Temporal Self-Hosting workshop
-## Prereqs
-    - Github account
-    - [Temporal CLI](https://docs.temporal.io/cli)
-    - [gh cli](https://github.com/cli/cli)
+# Temporal Self-Hosting Workshop (Podman Edition)
 
-## Codespace creation
-1. Create the Github Codespace
-2. (Once complete) Run `./.devcontainer/start-ports.sh`
-3. Open the WebUI via the ports tab
-4. Start the port forwarding on your local machine;
-```bash
-gh codespace list
-gh codespace ports forward 7233:7233
-```
-5. On the local machine run: `temporal operator namespace list`
-```bash
-temporal operator namespace list
-  NamespaceInfo.Name                    temporal-system
-  NamespaceInfo.Id                      32049b68-7872-4094-8e63-d0dd59896a83
-  NamespaceInfo.Description             Temporal internal system namespace
-  NamespaceInfo.OwnerEmail              temporal-core@temporal.io
-  NamespaceInfo.State                   Registered
-  NamespaceInfo.Data                    map[]
-  Config.WorkflowExecutionRetentionTtl  168h0m0s
-  ReplicationConfig.ActiveClusterName   active
-  ReplicationConfig.Clusters            [{"clusterName":"active"}]
-  Config.HistoryArchivalState           Disabled
-  Config.VisibilityArchivalState        Disabled
-  IsGlobalNamespace                     false
-  FailoverVersion                       0
-  FailoverHistory                       []
-  Config.HistoryArchivalUri
-  Config.VisibilityArchivalUri
-  Config.CustomSearchAttributeAliases   map[]
-```
+This workshop demonstrates running Temporal with multi-cluster replication using **Podman** (or Docker) with Docker Compose - no Kubernetes required!
+
+## Architecture
+
+The workshop sets up:
+- **Two Temporal clusters** (cluster-1 and cluster-2) with cross-cluster replication
+- **PostgreSQL** with separate databases for each cluster
+- **Grafana** for observability and metrics
+- **Prometheus** for metrics collection
+- **Archival** using shared file storage

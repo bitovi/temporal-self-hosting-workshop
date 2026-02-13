@@ -1,0 +1,110 @@
+log:
+  stdout: true
+  level: info
+
+persistence:
+  defaultStore: default
+  visibilityStore: visibility
+  numHistoryShards: 256
+  datastores:
+    default:
+      sql:
+        pluginName: postgres12
+        databaseName: temporal_persistence
+        connectAddr: postgresql:5432
+        connectProtocol: tcp
+        user: temporal
+        password: temporal
+        maxConns: 20
+        maxIdleConns: 20
+        maxConnLifetime: 1h
+    visibility:
+      sql:
+        pluginName: postgres12
+        databaseName: temporal_visibility
+        connectAddr: postgresql:5432
+        connectProtocol: tcp
+        user: temporal
+        password: temporal
+        maxConns: 20
+        maxIdleConns: 20
+        maxConnLifetime: 1h
+
+global:
+  membership:
+    maxJoinDuration: 30s
+    broadcastAddress: 0.0.0.0
+  pprof:
+    port: 0
+
+services:
+  frontend:
+    rpc:
+      grpcPort: 7233
+      membershipPort: 6933
+      bindOnLocalHost: false
+      httpPort: 7243
+
+  matching:
+    rpc:
+      grpcPort: 7235
+      membershipPort: 6935
+      bindOnLocalHost: false
+
+  history:
+    rpc:
+      grpcPort: 7234
+      membershipPort: 6934
+      bindOnLocalHost: false
+
+  worker:
+    rpc:
+      grpcPort: 7239
+      membershipPort: 6939
+      bindOnLocalHost: false
+
+clusterMetadata:
+  enableGlobalNamespace: true
+  failoverVersionIncrement: 10
+  masterClusterName: "cluster-1"
+  currentClusterName: "cluster-1"
+  clusterInformation:
+    cluster-1:
+      enabled: true
+      initialFailoverVersion: 1
+      rpcName: "frontend"
+      rpcAddress: "cluster-1-frontend:7233"
+    cluster-2:
+      enabled: true
+      initialFailoverVersion: 2
+      rpcName: "frontend"
+      rpcAddress: "cluster-2-frontend:7233"
+
+archival:
+  history:
+    state: "enabled"
+    enableRead: true
+    provider:
+      filestore:
+        fileMode: "0666"
+        dirMode: "0766"
+  visibility:
+    state: "enabled"
+    enableRead: true
+    provider:
+      filestore:
+        fileMode: "0666"
+        dirMode: "0766"
+
+namespaceDefaults:
+  archival:
+    history:
+      state: "enabled"
+      URI: "file:///tmp/temporal_archival/persistence"
+    visibility:
+      state: "enabled"
+      URI: "file:///tmp/temporal_archival/visibility"
+
+dynamicConfigClient:
+  filepath: /etc/temporal/config/dynamicconfig/development-sql.yaml
+  pollInterval: 10s

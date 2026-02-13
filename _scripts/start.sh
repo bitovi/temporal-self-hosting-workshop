@@ -6,51 +6,54 @@ if [[ ! -d ./benchmark-workers ]]; then
   git clone https://github.com/temporalio/benchmark-workers.git
 fi
 
-# Start the k3d cluster
-if k3d cluster list | grep -q '^dev\s'; then
-  echo "k3d cluster 'dev' already exists"
-  k3d cluster start dev
+# Create necessary directories
+if [[ ! -d /workspaces/.temporal ]]; then
+  mkdir -p /workspaces/.temporal
+  chmod 777 /workspaces/.temporal
+fi
+
+echo "Starting Temporal clusters with Docker Compose (Podman compatible)..."
+
+# Check if containers are already running
+if docker-compose ps | grep -q 'Up'; then
+  echo "Temporal services are already running"
+  docker-compose ps
 else
-  mkdir -p /tmp/k3d-storage
+  # Start all services with docker-compose
+  echo "Starting PostgreSQL, Temporal clusters (1 & 2), Grafana, and Prometheus..."
+  docker-compose up -d
 
-  # Map host ports -> cluster nodeports
-  k3d cluster create dev \
-    -p "8080:30080@server:0" \
-    -p "7233:30233@server:0" \
-    -p "3000:30000@server:0" \
-    -p "8233:31233@server:0" \
-    -p "8181:31080@server:0" \
-    --volume /tmp/k3d-storage:/mnt/storage@all \
-    --wait --timeout 120s
+  echo "Waiting for services to be healthy..."
+  sleep 20
 
-  # Generate the kubeconfig for the cluster
-  k3d kubeconfig get dev > /workspaces/.kube/dev.yaml
+  # Wait for PostgreSQL
+  echo "Waiting for PostgreSQL to be ready..."
+  until docker exec temporal-postgresql pg_isready -U temporal > /dev/null 2>&1; do
+    echo "Waiting for PostgreSQL..."
+    sleep 2
+  done
 
-  chmod 666 /workspaces/.kube/dev.yaml
+  echo "Waiting for Temporal cluster 1 frontend..."
+  until docker exec cluster-1-frontend temporal operator cluster health 2>/dev/null | grep -q "SERVING"; do
+    echo "Waiting for cluster-1..."
+    sleep 3
+  done
 
-  docker exec k3d-dev-server-0 mkdir -p /mnt/storage/temporal_archival
-  docker exec k3d-dev-server-0 chmod 777 /mnt/storage/temporal_archival
-  kubectl apply -f infra/shared-volume.yml
+  echo "Waiting for Temporal cluster 2 frontend..."
+  until docker exec cluster-2-frontend temporal operator cluster health 2>/dev/null | grep -q "SERVING"; do
+    echo "Waiting for cluster-2..."
+    sleep 3
+  done
 
-  helm repo add bitnami https://charts.bitnami.com/bitnami
-  echo "Installing PostgreSQL via Helm chart..."
-  helm install postgresql bitnami/postgresql --version 18.1.2 \
-      -f helm/postgres-values.yaml \
-      --wait --timeout 5m
-
-  # Add the Temporal Helm repository
-  helm repo add temporalio https://temporalio.github.io/helm-charts
-
-  if [[ ! -d /workspaces/.temporal ]]; then
-    mkdir -p /workspaces/.temporal
-    chmod 777 /workspaces/.temporal
-  fi
-
-  helm template temporal temporalio/temporal --version 0.68.1 \
-      -f helm/cluster-1-temporal-values.yaml > ./manifest.yaml
-
-  # Install Temporal using Helm
-  echo "Installing Temporal via Helm chart..."
-  helm install cluster-1 temporalio/temporal --version 0.68.1 \
-      -f helm/cluster-1-temporal-values.yaml
+  echo ""
+  echo "✓ All services started successfully!"
+  echo ""
+  echo "Services available at:"
+  echo "  - Cluster 1 Frontend: localhost:7233"
+  echo "  - Cluster 1 Web UI:   http://localhost:8080"
+  echo "  - Cluster 2 Frontend: localhost:8233"
+  echo "  - Cluster 2 Web UI:   http://localhost:8181"
+  echo "  - Grafana:            http://localhost:3000 (admin/temporal)"
+  echo "  - Prometheus:         http://localhost:9090"
+  echo ""
 fi

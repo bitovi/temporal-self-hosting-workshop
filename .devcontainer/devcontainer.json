@@ -1,5 +1,5 @@
 {
-  "name": "k8s-kind-dev",
+  "name": "temporal-podman-dev",
   "build": {
     "dockerfile": "Dockerfile",
     "context": "."
@@ -22,29 +22,34 @@
     "memory": "16gb",
     "storage": "32gb"
   },
-  "containerEnv": {
-    "KUBECONFIG": "/workspaces/.kube/dev.yaml",
-  },
   "postStartCommand": "/bin/bash -lc '_scripts/start.sh'",
   "customizations": {
     "vscode": {
-      "extensions": ["ms-kubernetes-tools.vscode-kubernetes-tools"]
+      "extensions": ["ms-azuretools.vscode-docker"]
     }
   },
   "forwardPorts": [
     8080,
     3000,
-    8181
+    8181,
+    7233,
+    8233
   ],
   "portsAttributes": {
     "8080": {
-      "label": "WebUI"
+      "label": "Cluster 1 WebUI"
     },
     "3000": {
       "label": "Grafana"
     },
     "8181": {
-      "label": "WebUI for Standby"
+      "label": "Cluster 2 WebUI"
+    },
+    "7233": {
+      "label": "Cluster 1 gRPC"
+    },
+    "8233": {
+      "label": "Cluster 2 gRPC"
     }
   },
   "remoteEnv": {

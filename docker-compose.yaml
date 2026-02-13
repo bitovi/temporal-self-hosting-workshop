@@ -1,0 +1,288 @@
+version: '3.8'
+
+networks:
+  temporal-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  temporal-archival:
+
+services:
+  # PostgreSQL Database
+  postgresql:
+    image: postgres:15-alpine
+    container_name: temporal-postgresql
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    networks:
+      - temporal-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Temporal Schema Setup (runs once to initialize databases)
+  temporal-schema-setup:
+    image: temporalio/admin-tools:1.24.2
+    container_name: temporal-schema-setup
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    environment:
+      - SQL_PLUGIN=postgres12
+      - SQL_HOST=postgresql
+      - SQL_PORT=5432
+      - SQL_USER=temporal
+      - SQL_PASSWORD=temporal
+    networks:
+      - temporal-network
+    command: >
+      sh -c "
+        temporal-sql-tool --database temporal_persistence setup-schema -v 0.0 &&
+        temporal-sql-tool --database temporal_persistence update-schema -d /etc/temporal/schema/postgresql/v12/temporal/versioned &&
+        temporal-sql-tool --database temporal_visibility setup-schema -v 0.0 &&
+        temporal-sql-tool --database temporal_visibility update-schema -d /etc/temporal/schema/postgresql/v12/visibility/versioned &&
+        temporal-sql-tool --database temporal_persistence_2 setup-schema -v 0.0 &&
+        temporal-sql-tool --database temporal_persistence_2 update-schema -d /etc/temporal/schema/postgresql/v12/temporal/versioned &&
+        temporal-sql-tool --database temporal_visibility_2 setup-schema -v 0.0 &&
+        temporal-sql-tool --database temporal_visibility_2 update-schema -d /etc/temporal/schema/postgresql/v12/visibility/versioned
+      "
+
+  # Cluster 1 - Frontend
+  cluster-1-frontend:
+    image: temporalio/server:1.24.2
+    container_name: cluster-1-frontend
+    depends_on:
+      temporal-schema-setup:
+        condition: service_completed_successfully
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_GLOBAL_NAMESPACE=true
+      - TEMPORAL_CLI_ADDRESS=cluster-1-frontend:7233
+    ports:
+      - "7233:7233"
+    volumes:
+      - ./infra/cluster-1-config.yaml:/etc/temporal/config/config_template.yaml
+      - temporal-archival:/tmp/temporal_archival
+    networks:
+      - temporal-network
+    command: ["temporal-server", "start", "--service", "frontend"]
+
+  # Cluster 1 - History
+  cluster-1-history:
+    image: temporalio/server:1.24.2
+    container_name: cluster-1-history
+    depends_on:
+      - cluster-1-frontend
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_GLOBAL_NAMESPACE=true
+      - NUM_HISTORY_SHARDS=256
+    volumes:
+      - ./infra/cluster-1-config.yaml:/etc/temporal/config/config_template.yaml
+      - temporal-archival:/tmp/temporal_archival
+    networks:
+      - temporal-network
+    command: ["temporal-server", "start", "--service", "history"]
+
+  # Cluster 1 - Matching
+  cluster-1-matching:
+    image: temporalio/server:1.24.2
+    container_name: cluster-1-matching
+    depends_on:
+      - cluster-1-frontend
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_GLOBAL_NAMESPACE=true
+    volumes:
+      - ./infra/cluster-1-config.yaml:/etc/temporal/config/config_template.yaml
+    networks:
+      - temporal-network
+    command: ["temporal-server", "start", "--service", "matching"]
+
+  # Cluster 1 - Worker
+  cluster-1-worker:
+    image: temporalio/server:1.24.2
+    container_name: cluster-1-worker
+    depends_on:
+      - cluster-1-frontend
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_GLOBAL_NAMESPACE=true
+    volumes:
+      - ./infra/cluster-1-config.yaml:/etc/temporal/config/config_template.yaml
+      - temporal-archival:/tmp/temporal_archival
+    networks:
+      - temporal-network
+    command: ["temporal-server", "start", "--service", "worker"]
+
+  # Cluster 1 - Web UI
+  cluster-1-web:
+    image: temporalio/ui:2.26.2
+    container_name: cluster-1-web
+    depends_on:
+      - cluster-1-frontend
+    environment:
+      - TEMPORAL_ADDRESS=cluster-1-frontend:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:8080
+    ports:
+      - "8080:8080"
+    networks:
+      - temporal-network
+
+  # Cluster 2 - Frontend
+  cluster-2-frontend:
+    image: temporalio/server:1.28.0
+    container_name: cluster-2-frontend
+    depends_on:
+      temporal-schema-setup:
+        condition: service_completed_successfully
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_GLOBAL_NAMESPACE=true
+      - TEMPORAL_CLI_ADDRESS=cluster-2-frontend:7233
+    ports:
+      - "8233:7233"
+    volumes:
+      - ./infra/cluster-2-config.yaml:/etc/temporal/config/config_template.yaml
+    networks:
+      - temporal-network
+    command: ["temporal-server", "start", "--service", "frontend"]
+
+  # Cluster 2 - History
+  cluster-2-history:
+    image: temporalio/server:1.28.0
+    container_name: cluster-2-history
+    depends_on:
+      - cluster-2-frontend
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_GLOBAL_NAMESPACE=true
+      - NUM_HISTORY_SHARDS=1024
+    volumes:
+      - ./infra/cluster-2-config.yaml:/etc/temporal/config/config_template.yaml
+    networks:
+      - temporal-network
+    command: ["temporal-server", "start", "--service", "history"]
+
+  # Cluster 2 - Matching
+  cluster-2-matching:
+    image: temporalio/server:1.28.0
+    container_name: cluster-2-matching
+    depends_on:
+      - cluster-2-frontend
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_GLOBAL_NAMESPACE=true
+    volumes:
+      - ./infra/cluster-2-config.yaml:/etc/temporal/config/config_template.yaml
+    networks:
+      - temporal-network
+    command: ["temporal-server", "start", "--service", "matching"]
+
+  # Cluster 2 - Worker
+  cluster-2-worker:
+    image: temporalio/server:1.28.0
+    container_name: cluster-2-worker
+    depends_on:
+      - cluster-2-frontend
+    environment:
+      - DB=postgresql
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_GLOBAL_NAMESPACE=true
+    volumes:
+      - ./infra/cluster-2-config.yaml:/etc/temporal/config/config_template.yaml
+    networks:
+      - temporal-network
+    command: ["temporal-server", "start", "--service", "worker"]
+
+  # Cluster 2 - Web UI
+  cluster-2-web:
+    image: temporalio/ui:2.26.2
+    container_name: cluster-2-web
+    depends_on:
+      - cluster-2-frontend
+    environment:
+      - TEMPORAL_ADDRESS=cluster-2-frontend:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:8181
+    ports:
+      - "8181:8080"
+    networks:
+      - temporal-network
+
+  # Grafana for Monitoring
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: temporal-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=temporal
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./grafana/dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml
+      - ./grafana:/var/lib/grafana/dashboards
+    networks:
+      - temporal-network
+
+  # Prometheus for Metrics (needed by Grafana)
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: temporal-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./infra/prometheus.yaml:/etc/prometheus/prometheus.yml
+    networks:
+      - temporal-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
