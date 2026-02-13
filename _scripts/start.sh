@@ -10,6 +10,21 @@ fi
 if k3d cluster list | grep -q '^dev\s'; then
   echo "k3d cluster 'dev' already exists"
   k3d cluster start dev
+  
+  # Ensure dashboards are reloaded after restart
+  echo "Reloading Grafana dashboards..."
+  helm repo add temporalio https://temporalio.github.io/helm-charts 2>/dev/null || true
+  helm upgrade cluster-1 temporalio/temporal --version 0.68.1 \
+      -f helm/cluster-1-temporal-values.yaml \
+      --reuse-values \
+      --wait --timeout 2m
+  
+  # Restart Grafana pod to pick up dashboard changes
+  echo "Restarting Grafana pod to refresh dashboards..."
+  kubectl rollout restart deployment cluster-1-temporal-grafana
+  kubectl rollout status deployment cluster-1-temporal-grafana --timeout=2m
+  
+  echo "Dashboards reloaded successfully!"
 else
   mkdir -p /tmp/k3d-storage
 
