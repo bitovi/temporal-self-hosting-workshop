@@ -1,6 +1,6 @@
 server:
   dynamicConfig:
     frontend.rps:
-    - value: 50
+    - value: __CHANGE VALUE__
       constraints: {}
 

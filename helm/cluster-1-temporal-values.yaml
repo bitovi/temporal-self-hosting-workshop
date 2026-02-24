@@ -1,5 +1,34 @@
 server:
   replicaCount: 1
+  additionalEnv:
+    - name: AWS_ACCESS_KEY_ID
+      value: admin
+    - name: AWS_SECRET_ACCESS_KEY
+      value: temporal
+  archival:
+    history:
+      state: "enabled"
+      enableRead: true
+      provider:
+        s3store:
+          region: us-east-1
+          endpoint: "http://minio:9000"
+          accessKey: admin
+          secretKey: temporal
+          insecure: true
+          s3ForcePathStyle: true
+    visibility:
+      state: "enabled"
+      enableRead: true
+      provider:
+        s3store:
+          region: us-east-1
+          endpoint: "http://minio:9000"
+          accessKey: admin
+          secretKey: temporal
+          insecure: true
+          s3ForcePathStyle: true
+
   config:
     numHistoryShards: 256
     persistence:
@@ -40,40 +69,16 @@ server:
         cluster-2:
           enabled: true
           initialFailoverVersion: 2
-          rpcAddress: "cluster-2-temporal-frontend:7233"
-  
-  archival:
-    history:
-      state: 'enabled'
-      enableRead: true
-      provider:
-        filestore:
-          fileMode: '0666'
-          dirMode: '0766'
-    visibility:
-      state: 'enabled'
-      enableRead: true
-      provider:
-        filestore:
-          fileMode: '0666'
-          dirMode: '0766'
-  
-  additionalVolumes:
-    - name: shared-volume
-      persistentVolumeClaim:
-        claimName: shared-pvc
-  additionalVolumeMounts:
-    - name: shared-volume
-      mountPath: /tmp/temporal_archival
-  
+          rpcAddress: "cluster-2-temporal-frontend:7233"  
+
   namespaceDefaults:
     archival:
       history:
         state: 'enabled'
-        URI: 'file:///tmp/temporal_archival/persistence'
+        URI: 's3://temporal-archival/history'
       visibility:
         state: 'enabled'
-        URI: 'file:///tmp/temporal_archival/visibility'
+        URI: 's3://temporal-visibility/visibility'
 
   frontend:
     service:
@@ -82,19 +87,30 @@ server:
       targetPort: 7233
       nodePort: 30233
 
+  history:
+    service:
+      type: ClusterIP
+      port: 7234
+      targetPort: 7234
+
+  matching:
+    service:
+      type: ClusterIP
+      port: 7235
+      targetPort: 7235
+
+  worker:
+    service:
+      type: ClusterIP
+      port: 7239
+      targetPort: 7239
+
 web:
   service:
     type: NodePort
     port: 8080
     targetPort: 8080
     nodePort: 30080
-  additionalVolumes:
-    - name: shared-volume
-      persistentVolumeClaim:
-        claimName: shared-pvc
-  additionalVolumeMounts:
-    - name: shared-volume
-      mountPath: /tmp/temporal_archival
   
 
 cassandra:

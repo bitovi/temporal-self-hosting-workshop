@@ -34,7 +34,8 @@
   "forwardPorts": [
     8080,
     3000,
-    8181
+    8181,
+    9090
   ],
   "portsAttributes": {
     "8080": {
@@ -45,6 +46,9 @@
     },
     "8181": {
       "label": "WebUI for Standby"
+    },
+    "9090": {
+      "label": "S3 WebUI for MinIO"
     }
   },
   "remoteEnv": {

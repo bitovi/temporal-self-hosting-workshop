@@ -2,6 +2,30 @@ server:
   replicaCount: 1
   image:
     tag: 1.28.0
+  archival:
+    history:
+      state: "enabled"
+      enableRead: true
+      provider:
+        s3store:
+          region: us-east-1
+          endpoint: "http://minio:9000"
+          accessKey: admin
+          secretKey: temporal
+          insecure: true
+          s3ForcePathStyle: true
+    visibility:
+      state: "enabled"
+      enableRead: true
+      provider:
+        s3store:
+          region: us-east-1
+          endpoint: "http://minio:9000"
+          accessKey: admin
+          secretKey: temporal
+          insecure: true
+          s3ForcePathStyle: true
+
   config:
     numHistoryShards: 1024
     persistence:
@@ -43,6 +67,7 @@ server:
           enabled: true
           initialFailoverVersion: 2
           rpcAddress: "cluster-2-temporal-frontend:7233"
+
   frontend:
     service:
       type: NodePort

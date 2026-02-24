@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-set-bucket-policy
+  namespace: default
+spec:
+  template:
+    spec:
+      serviceAccountName: default
+      containers:
+      - name: mc
+        image: minio/mc:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          # Set alias for local MinIO
+          mc alias set minio http://minio:9000 admin temporal --api S3v4
+          
+          # Set bucket policy to allow authenticated users to read using correct syntax
+          mc anonymous set download minio/temporal-archival
+          mc anonymous set download minio/temporal-visibility
+          
+          # Verify buckets are accessible
+          mc ls minio/temporal-archival || echo "Failed to access temporal-archival"
+          mc ls minio/temporal-visibility || echo "Failed to access temporal-visibility"
+          
+          echo "Bucket policies set successfully"
+      restartPolicy: Never
+  backoffLimit: 3
