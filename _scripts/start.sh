@@ -37,17 +37,6 @@ if k3d cluster list | grep -q '^dev\s'; then
   kubectl apply -f minio/set-bucket-policies.yaml
   kubectl wait --for=condition=complete job/minio-set-bucket-policy --timeout=60s || true
   
-  temporal operator namespace create -n workshop
-
-  # Ensure archival is enabled on workshop namespace
-  echo "Verifying archival on workshop namespace..."
-  temporal operator namespace update \
-    --namespace workshop \
-    --history-archival-state enabled \
-    --history-uri s3://temporal-archival/history \
-    --visibility-archival-state enabled \
-    --visibility-uri s3://temporal-visibility/visibility || echo "Archival already configured"
-  
   echo "Reload complete!"
 
 else
@@ -110,18 +99,4 @@ else
   echo "Configuring MinIO bucket policies for archival..."
   kubectl apply -f minio/set-bucket-policies.yaml
   kubectl wait --for=condition=complete job/minio-set-bucket-policy --timeout=60s || true
-
-
-  temporal operator namespace create -n workshop
-  
-  # Enable archival on workshop namespace
-  echo "Enabling archival on workshop namespace..."
-  temporal operator namespace update \
-    --namespace workshop \
-    --history-archival-state enabled \
-    --history-uri s3://temporal-archival/history \
-    --visibility-archival-state enabled \
-    --visibility-uri s3://temporal-visibility/visibility || echo "Archival may already be enabled"
-  
-  echo "Setup complete! Temporal with MinIO archival is ready."
 fi
