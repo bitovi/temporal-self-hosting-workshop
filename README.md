@@ -1,36 +1,66 @@
-# Temporal Self-Hosting workshop
-## Prereqs
-    - Github account
-    - [Temporal CLI](https://docs.temporal.io/cli)
-    - [gh cli](https://github.com/cli/cli)
+# Temporal Self-Hosting Workshop
 
-## Codespace creation
-1. Create the Github Codespace
-2. (Once complete) Run `./.devcontainer/start-ports.sh`
-3. Open the WebUI via the ports tab
-4. Start the port forwarding on your local machine;
-```bash
-gh codespace list
-gh codespace ports forward 7233:7233
-```
-5. On the local machine run: `temporal operator namespace list`
+## Prerequisites
+
+- GitHub account
+
+## Starting a Codespace
+
+1. Navigate to this repository on GitHub
+2. Click the **Code** button → select the **Codespaces** tab
+3. Click **Create codespace on main**
+4. Wait for the environment to finish building — this takes a few minutes on first launch as it provisions a k3d cluster, PostgreSQL, MinIO, and Temporal
+
+> The setup runs automatically via `_scripts/start.sh`. Once complete, the services listed below are available.
+
+## Service Addresses
+
+Services are accessible via the **Ports** tab in the Codespace editor (or the forwarded URLs shown there).
+
+| Service | Local Port | Ports Tab Label |
+|---|---|---|
+| Temporal WebUI (cluster-1) | `8080` | WebUI |
+| Temporal WebUI (standby cluster) | `8181` | WebUI for Standby |
+| Grafana | `3000` | Grafana |
+| MinIO S3 WebUI | `9090` | S3 WebUI for MinIO |
+| Temporal gRPC frontend | `7233` | *(used by CLI)* |
+
+> In the Ports tab, right-click a port and select **Open in Browser** to access the UI.
+
+## Temporal CLI
+
+The `temporal` CLI is pre-installed in the Codespace. Open a terminal and use it directly — it defaults to `localhost:7233`.
+
+**List namespaces:**
 ```bash
 temporal operator namespace list
-  NamespaceInfo.Name                    temporal-system
-  NamespaceInfo.Id                      32049b68-7872-4094-8e63-d0dd59896a83
-  NamespaceInfo.Description             Temporal internal system namespace
-  NamespaceInfo.OwnerEmail              temporal-core@temporal.io
-  NamespaceInfo.State                   Registered
-  NamespaceInfo.Data                    map[]
-  Config.WorkflowExecutionRetentionTtl  168h0m0s
-  ReplicationConfig.ActiveClusterName   active
-  ReplicationConfig.Clusters            [{"clusterName":"active"}]
-  Config.HistoryArchivalState           Disabled
-  Config.VisibilityArchivalState        Disabled
-  IsGlobalNamespace                     false
-  FailoverVersion                       0
-  FailoverHistory                       []
-  Config.HistoryArchivalUri
-  Config.VisibilityArchivalUri
-  Config.CustomSearchAttributeAliases   map[]
+```
+
+**List workflows in a namespace:**
+```bash
+temporal workflow list --namespace default
+```
+
+**Start a workflow:**
+```bash
+temporal workflow start \
+  --namespace default \
+  --task-queue my-task-queue \
+  --type MyWorkflow \
+  --input '"hello"'
+```
+
+**Describe a workflow execution:**
+```bash
+temporal workflow describe --workflow-id <workflow-id> --namespace default
+```
+
+**Show workflow history:**
+```bash
+temporal workflow show --workflow-id <workflow-id> --namespace default
+```
+
+**Connect to a specific address (e.g., standby cluster on port 8233):**
+```bash
+temporal --address localhost:8233 operator namespace list
 ```
