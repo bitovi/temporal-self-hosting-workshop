@@ -67,11 +67,19 @@ server:
           enabled: true
           initialFailoverVersion: 2
           rpcAddress: "cluster-2-temporal-frontend:7233"
+  namespaceDefaults:
+    archival:
+      history:
+        state: 'enabled'
+        URI: 's3://temporal-archival/history'
+      visibility:
+        state: 'enabled'
+        URI: 's3://temporal-visibility/visibility'
 
   frontend:
     service:
       type: NodePort
-      port: 7233
+      port: 8233
       httpPort: 7243
       targetPort: 7233
       nodePort: 31233
