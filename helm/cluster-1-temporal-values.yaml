@@ -113,11 +113,6 @@ web:
     nodePort: 30080
   
 
-cassandra:
-  enabled: false
-elasticsearch:
-  enabled: false
-
 grafana:
   enabled: true
   service:
