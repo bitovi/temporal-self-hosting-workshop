@@ -54,6 +54,14 @@ else
   k3d kubeconfig get dev > /workspaces/.kube/dev.yaml
 
   chmod 666 /workspaces/.kube/dev.yaml
+  
+  echo "Installing Grafana via Helm chart"
+  helm repo add grafana-community https://grafana-community.github.io/helm-charts
+  helm repo update
+  helm install grafana grafana-community/grafana --version 12.00 \
+      -f grafana/grafana-values.yaml \
+      --wait --timeout 5m
+
 
   helm repo add bitnami https://charts.bitnami.com/bitnami
   echo "Installing PostgreSQL via Helm chart..."
