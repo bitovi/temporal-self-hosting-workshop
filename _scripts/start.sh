@@ -12,7 +12,7 @@ if k3d cluster list | grep -q '^dev\s'; then
   k3d cluster start dev
   
   echo "Reloading Temporal"
-  helm upgrade cluster-1 temporalio/temporal --version 1.6.0 \
+  helm upgrade cluster-1 temporalio/temporal --version 1.5.0 \
       -f helm/cluster-1-temporal-values.yaml \
       --reuse-values \
       --wait --timeout 2m
@@ -80,12 +80,12 @@ else
     chmod 777 /workspaces/.temporal
   fi
 
-  helm template temporal temporalio/temporal --version 1.6.0 \
+  helm template temporal temporalio/temporal --version 1.5.0 \
       -f helm/cluster-1-temporal-values.yaml > ./manifest.yaml
 
   # Install Temporal using Helm
   echo "Installing Temporal via Helm chart..."
-  helm install cluster-1 temporalio/temporal --version 1.6.0 \
+  helm install cluster-1 temporalio/temporal --version 1.5.0 \
       -f helm/cluster-1-temporal-values.yaml
   
   # Wait for Temporal to be ready
