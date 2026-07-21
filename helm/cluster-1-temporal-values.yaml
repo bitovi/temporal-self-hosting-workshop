@@ -42,7 +42,7 @@ server:
             driverName: postgres12
             connectAddr: postgresql.default.svc.cluster.local:5432
             connectProtocol: tcp
-            database: temporal_persistence
+            databaseName: temporal_persistence
             user: temporal
             password: temporal
             maxConns: 20
@@ -54,7 +54,7 @@ server:
             driverName: postgres12
             connectAddr: postgresql.default.svc.cluster.local:5432
             connectProtocol: tcp
-            database: temporal_visibility
+            databaseName: temporal_visibility
             user: temporal
             password: temporal
             maxConns: 20
