@@ -40,8 +40,8 @@ server:
           sql:
             pluginName: postgres12
             driverName: postgres12
-            host: postgresql.default.svc.cluster.local
-            port: 5432
+            connectAddr: postgresql.default.svc.cluster.local:5432
+            connectProtocol: tcp
             database: temporal_persistence
             user: temporal
             password: temporal
@@ -52,8 +52,8 @@ server:
           sql:
             pluginName: postgres12
             driverName: postgres12
-            host: postgresql.default.svc.cluster.local
-            port: 5432
+            connectAddr: postgresql.default.svc.cluster.local:5432
+            connectProtocol: tcp
             database: temporal_visibility
             user: temporal
             password: temporal
