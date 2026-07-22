@@ -23,7 +23,7 @@
     "storage": "32gb"
   },
   "containerEnv": {
-    "KUBECONFIG": "/workspaces/.kube/dev.yaml",
+    "KUBECONFIG": "/workspaces/.kube/dev.yaml"
   },
   "postStartCommand": "/bin/bash -lc '_scripts/start.sh'",
   "customizations": {

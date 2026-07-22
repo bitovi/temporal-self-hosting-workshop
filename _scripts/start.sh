@@ -57,8 +57,14 @@ else
   
   echo "Installing Grafana via Helm chart"
   helm repo add grafana-community https://grafana-community.github.io/helm-charts
-  helm install grafana grafana-community/grafana --version 12.7.3 \
+  helm install cluster-1-temporal-grafana grafana-community/grafana --version 12.7.3 \
       -f grafana/grafana-values.yaml \
+      --wait --timeout 5m
+
+  echo "Installing Prometheus via Helm chart"
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  helm install cluster-1-temporal-prometheus prometheus-community/prometheus \
+      -f prometheus/prometheus-values.yaml \
       --wait --timeout 5m
 
 
@@ -107,3 +113,4 @@ else
   kubectl apply -f minio/set-bucket-policies.yaml
   kubectl wait --for=condition=complete job/minio-set-bucket-policy --timeout=60s || true
 fi
+
