@@ -35,8 +35,7 @@
     8080,
     3000,
     8181,
-    9090,
-    9091
+    9090
   ],
   "portsAttributes": {
     "8080": {
@@ -50,9 +49,6 @@
     },
     "9090": {
       "label": "S3 WebUI for MinIO"
-    },
-    "9091": {
-      "label": "Prometheus"
     }
   },
   "remoteEnv": {
