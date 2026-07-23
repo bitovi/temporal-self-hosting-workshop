@@ -745,7 +745,8 @@ server:
     loadBalancerClass: ""
     servicePort: 80
     sessionAffinity: None
-    type: ClusterIP
+    type: NodePort
+    nodePort: 30909
     ## externalTrafficPolicy is applicable to service with externally-facing addresses (NodePorts, ExternalIPs, and LoadBalancer IPs)
     externalTrafficPolicy: ""
 
@@ -1062,21 +1063,17 @@ scrapeConfigs:
 # extraScrapeConfigs adds additional scrape configs to prometheus.yml
 # must be a string so you have to add a | after extraScrapeConfigs:
 # example adds prometheus-blackbox-exporter scrape config
-extraScrapeConfigs: ""
-  # - job_name: 'prometheus-blackbox-exporter'
-  #   metrics_path: /probe
-  #   params:
-  #     module: [http_2xx]
-  #   static_configs:
-  #     - targets:
-  #       - https://example.com
-  #   relabel_configs:
-  #     - source_labels: [__address__]
-  #       target_label: __param_target
-  #     - source_labels: [__param_target]
-  #       target_label: instance
-  #     - target_label: __address__
-  #       replacement: prometheus-blackbox-exporter:9115
+extraScrapeConfigs: |
+  - job_name: 'temporal-cluster-1'
+    # Temporal server components expose Prometheus metrics on :9090 by default.
+    # Verify against the deployed pods (metrics port can be overridden via
+    # server.dynamicConfig / global.metrics) and adjust if it differs.
+    static_configs:
+      - targets:
+          - cluster-1-temporal-frontend.default.svc.cluster.local:9090
+          - cluster-1-temporal-history.default.svc.cluster.local:9090
+          - cluster-1-temporal-matching.default.svc.cluster.local:9090
+          - cluster-1-temporal-worker.default.svc.cluster.local:9090
 
 ## Prometheus server ConfigMap entries for rule files (allow prometheus labels interpolation)
 ruleFiles: {}
