@@ -34,6 +34,19 @@ dashboards:
       url: https://raw.githubusercontent.com/temporalio/dashboards/helm/misc/worker-service-specific.json
       datasource: TemporalMetrics
 
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
 readinessProbe:
   httpGet:
     path: /api/health
