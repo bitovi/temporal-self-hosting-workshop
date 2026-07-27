@@ -12,7 +12,7 @@ if k3d cluster list | grep -q '^dev\s'; then
   k3d cluster start dev
   
   echo "Reloading Temporal"
-  helm upgrade cluster-1 temporalio/temporal --version 0.73.1 \
+  helm upgrade cluster-1 temporalio/temporal --version 1.6.0 \
       -f helm/cluster-1-temporal-values.yaml \
       --reuse-values \
       --wait --timeout 2m
@@ -54,6 +54,19 @@ else
   k3d kubeconfig get dev > /workspaces/.kube/dev.yaml
 
   chmod 666 /workspaces/.kube/dev.yaml
+  
+  echo "Installing Grafana via Helm chart"
+  helm repo add grafana-community https://grafana-community.github.io/helm-charts
+  helm install cluster-1-temporal-grafana grafana-community/grafana --version 12.7.3 \
+      -f grafana/grafana-values.yaml \
+      --wait --timeout 5m
+
+  echo "Installing Prometheus via Helm chart"
+  helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  helm install cluster-1-temporal-prometheus prometheus-community/prometheus \
+      -f prometheus/prometheus-values.yaml \
+      --wait --timeout 5m
+
 
   helm repo add bitnami https://charts.bitnami.com/bitnami
   echo "Installing PostgreSQL via Helm chart..."
@@ -80,12 +93,12 @@ else
     chmod 777 /workspaces/.temporal
   fi
 
-  helm template temporal temporalio/temporal --version 0.73.1 \
+  helm template temporal temporalio/temporal --version 1.6.0 \
       -f helm/cluster-1-temporal-values.yaml > ./manifest.yaml
 
   # Install Temporal using Helm
   echo "Installing Temporal via Helm chart..."
-  helm install cluster-1 temporalio/temporal --version 0.73.1 \
+  helm install cluster-1 temporalio/temporal --version 1.6.0 \
       -f helm/cluster-1-temporal-values.yaml
   
   # Wait for Temporal to be ready
@@ -100,3 +113,4 @@ else
   kubectl apply -f minio/set-bucket-policies.yaml
   kubectl wait --for=condition=complete job/minio-set-bucket-policy --timeout=60s || true
 fi
+

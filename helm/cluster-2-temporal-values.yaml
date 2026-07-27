@@ -29,30 +29,34 @@ server:
   config:
     numHistoryShards: 1024
     persistence:
-      default:
-        driver: "sql"
-        sql:
-          driver: "postgres12"
-          host: postgresql.default.svc.cluster.local
-          port: 5432
-          database: temporal_persistence_2
-          user: temporal
-          password: temporal
-          maxConns: 20
-          maxIdleConns: 20
-          maxConnLifetime: "1h"
-      visibility:
-        driver: "sql"
-        sql:
-          driver: "postgres12"
-          host: postgresql.default.svc.cluster.local
-          port: 5432
-          database: temporal_visibility_2
-          user: temporal
-          password: temporal
-          maxConns: 20
-          maxIdleConns: 20
-          maxConnLifetime: "1h"
+      defaultStore: default
+      visibilityStore: visibility
+      numHistoryShards: 512
+      datastores:
+        default:
+          sql:
+            pluginName: postgres12
+            driverName: postgres12
+            connectAddr: postgresql.default.svc.cluster.local:5432
+            connectProtocol: tcp
+            databaseName: temporal_persistence_2
+            user: temporal
+            password: temporal
+            maxConns: 20
+            maxIdleConns: 20
+            maxConnLifetime: "1h"
+        visibility:
+          sql:
+            pluginName: postgres12
+            driverName: postgres12
+            connectAddr: postgresql.default.svc.cluster.local:5432
+            connectProtocol: tcp
+            databaseName: temporal_visibility_2
+            user: temporal
+            password: temporal
+            maxConns: 20
+            maxIdleConns: 20
+            maxConnLifetime: "1h"    
     clusterMetadata:
       enableGlobalNamespace: true
       failoverVersionIncrement: 10
@@ -96,13 +100,3 @@ web:
     targetPort: 8080
     nodePort: 31080
 
-cassandra:
-  enabled: false
-elasticsearch:
-  enabled: false
-
-grafana:
-  enabled: false
-
-prometheus:
-  enabled: false
