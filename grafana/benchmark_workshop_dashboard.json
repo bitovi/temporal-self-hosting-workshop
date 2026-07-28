@@ -40,7 +40,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Percentage of theoretical shard capacity being used. < 50% is healthy. Shard count is now read live from numshards_gauge for the selected $cluster instead of a hardcoded number -- no more editing this formula when shard count differs.",
       "fieldConfig": {
@@ -99,9 +99,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "(sum(rate(service_requests{cluster=\"$cluster\",operation=\"StartWorkflowExecution\",service_name=\"frontend\"}[5m])) / scalar(max(numshards_gauge{cluster=\"$cluster\",cluster=\"$cluster\"}))) / (1000 / histogram_quantile(0.50, sum(rate(persistence_latency_bucket{cluster=\"$cluster\",service_name=\"history\"}[5m])) by (le))) * 100",
+          "expr": "(sum(rate(service_requests{app_kubernetes_io_instance=\"$cluster\",operation=\"StartWorkflowExecution\",service_name=\"frontend\"}[5m])) / scalar(max(numshards_gauge{app_kubernetes_io_instance=\"$cluster\",app_kubernetes_io_instance=\"$cluster\"}))) / (1000 / histogram_quantile(0.50, sum(rate(persistence_latency_bucket{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\"}[5m])) by (le))) * 100",
           "refId": "A"
         }
       ],
@@ -111,7 +111,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Database operation latency. < 10ms is good. This directly impacts max throughput.",
       "fieldConfig": {
@@ -170,9 +170,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(persistence_latency_bucket{cluster=\"$cluster\",service_name=\"history\"}[5m])) by (operation, le))",
+          "expr": "histogram_quantile(0.95, sum(rate(persistence_latency_bucket{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\"}[5m])) by (operation, le))",
           "refId": "A"
         }
       ],
@@ -182,7 +182,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "History service CPU utilization per pod. > 80% indicates resource constraint. Assumes 1 core available per pod.",
       "fieldConfig": {
@@ -241,7 +241,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
           "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"$cluster-temporal-history-.*\"}[5m])) / count(kube_pod_info{pod=~\"$cluster-temporal-history-.*\"}) * 100",
           "refId": "A"
@@ -253,7 +253,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Theoretical max state transitions/sec based on CURRENT persistence latency and live shard count (numshards_gauge for $cluster). Note: this reflects idle/light-load latency -- under sustained load, latency increases and this theoretical max decreases accordingly.",
       "fieldConfig": {
@@ -333,9 +333,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "1000 / histogram_quantile(0.99, sum(rate(persistence_latency_bucket{cluster=\"$cluster\",service_name=\"history\"}[5m])) by (le)) * scalar(max(numshards_gauge{cluster=\"$cluster\",cluster=\"$cluster\"}))",
+          "expr": "1000 / histogram_quantile(0.99, sum(rate(persistence_latency_bucket{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\"}[5m])) by (le)) * scalar(max(numshards_gauge{app_kubernetes_io_instance=\"$cluster\",app_kubernetes_io_instance=\"$cluster\"}))",
           "legendFormat": "Theoretical Max",
           "refId": "A"
         }
@@ -347,7 +347,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "gridPos": {
         "h": 1,
@@ -361,7 +361,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
           "refId": "A"
         }
@@ -372,7 +372,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Database operation latency. Use p50 for theoretical max calculation. < 10ms p95 is healthy.",
       "fieldConfig": {
@@ -462,27 +462,27 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "histogram_quantile(0.50, sum(rate(persistence_latency_bucket{cluster=\"$cluster\",service_name=\"history\",operation=~\"AppendHistoryNodes|CreateWorkflowExecution|UpdateWorkflowExecution\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(persistence_latency_bucket{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\",operation=~\"AppendHistoryNodes|CreateWorkflowExecution|UpdateWorkflowExecution\"}[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(persistence_latency_bucket{cluster=\"$cluster\",service_name=\"history\",operation=~\"AppendHistoryNodes|CreateWorkflowExecution|UpdateWorkflowExecution\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(persistence_latency_bucket{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\",operation=~\"AppendHistoryNodes|CreateWorkflowExecution|UpdateWorkflowExecution\"}[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(persistence_latency_bucket{cluster=\"$cluster\",service_name=\"history\",operation=~\"AppendHistoryNodes|CreateWorkflowExecution|UpdateWorkflowExecution\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(persistence_latency_bucket{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\",operation=~\"AppendHistoryNodes|CreateWorkflowExecution|UpdateWorkflowExecution\"}[5m])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -493,7 +493,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Database queries per second broken down by operation type.",
       "fieldConfig": {
@@ -575,9 +575,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "sum(rate(persistence_requests{cluster=\"$cluster\",service_name=\"history\"}[5m])) by (operation)",
+          "expr": "sum(rate(persistence_requests{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\"}[5m])) by (operation)",
           "legendFormat": "{{operation}}",
           "refId": "A"
         }
@@ -588,7 +588,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Database connection usage vs configured limits. Temporal is configured with maxConns=20 per pool (default/visibility). If approaching limits, increase maxConns in cluster values. Requires postgres_exporter for detailed metrics. Not scoped by $cluster -- Postgres metrics carry no cluster label, and cluster-1's databases (temporal_persistence/temporal_visibility) vs. cluster-2's (_2 suffix) can only be told apart by database name, not a selectable variable. Once cluster-2 exists, this shows both clusters' connections combined.",
       "fieldConfig": {
@@ -705,7 +705,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
           "expr": "sum(pg_stat_database_numbackends{datname=~\"temporal_(persistence|visibility)(_2)?$\"})",
           "legendFormat": "Active Connections",
@@ -714,7 +714,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
           "expr": "40",
           "legendFormat": "Max Connections (maxConns \u00d7 2 pools)",
@@ -728,7 +728,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "gridPos": {
         "h": 1,
@@ -742,7 +742,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
           "refId": "A"
         }
@@ -753,7 +753,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Number of workflows being started per second.",
       "fieldConfig": {
@@ -835,9 +835,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "sum(rate(service_requests{cluster=\"$cluster\",operation=\"StartWorkflowExecution\",service_name=\"frontend\"}[5m]))",
+          "expr": "sum(rate(service_requests{app_kubernetes_io_instance=\"$cluster\",operation=\"StartWorkflowExecution\",service_name=\"frontend\"}[5m]))",
           "legendFormat": "Workflow Starts/sec",
           "refId": "A"
         }
@@ -848,7 +848,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Workflow load per shard, using the live shard count for $cluster (numshards_gauge) instead of a hardcoded number. < 100/shard/sec is typically healthy.",
       "fieldConfig": {
@@ -938,9 +938,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "sum(rate(service_requests{cluster=\"$cluster\",operation=\"StartWorkflowExecution\",service_name=\"frontend\"}[5m])) / scalar(max(numshards_gauge{cluster=\"$cluster\",cluster=\"$cluster\"}))",
+          "expr": "sum(rate(service_requests{app_kubernetes_io_instance=\"$cluster\",operation=\"StartWorkflowExecution\",service_name=\"frontend\"}[5m])) / scalar(max(numshards_gauge{app_kubernetes_io_instance=\"$cluster\",app_kubernetes_io_instance=\"$cluster\"}))",
           "legendFormat": "Workflows per shard per second",
           "refId": "A"
         }
@@ -952,7 +952,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "gridPos": {
         "h": 1,
@@ -966,7 +966,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
           "refId": "A"
         }
@@ -977,7 +977,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Operations processed per CPU core. Helps identify if History service is CPU-bound.",
       "fieldConfig": {
@@ -1059,9 +1059,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "sum(rate(service_requests{cluster=\"$cluster\",service_name=\"history\",operation=~\"Respond.*TaskCompleted\"}[5m])) / count(kube_pod_info{pod=~\"$cluster-temporal-history-.*\"})",
+          "expr": "sum(rate(service_requests{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\",operation=~\"Respond.*TaskCompleted\"}[5m])) / count(kube_pod_info{pod=~\"$cluster-temporal-history-.*\"})",
           "legendFormat": "Throughput per History pod",
           "refId": "A"
         }
@@ -1072,7 +1072,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "History service CPU usage percentage per pod. > 80% indicates resource constraint. Assumes 1 core per pod.",
       "fieldConfig": {
@@ -1164,7 +1164,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
           "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"$cluster-temporal-history-.*\"}[5m])) / count(kube_pod_info{pod=~\"$cluster-temporal-history-.*\"}) * 100",
           "legendFormat": "History CPU %",
@@ -1178,7 +1178,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "gridPos": {
         "h": 1,
@@ -1192,7 +1192,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
           "refId": "A"
         }
@@ -1203,7 +1203,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "Lock acquisition latency. > 10ms suggests shard contention. < 5ms is healthy.",
       "fieldConfig": {
@@ -1293,18 +1293,18 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(lock_latency_bucket{cluster=\"$cluster\",operation=\"ShardInfo\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(lock_latency_bucket{app_kubernetes_io_instance=\"$cluster\",operation=\"ShardInfo\"}[5m])) by (le))",
           "legendFormat": "Shard Lock Latency (p99)",
           "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(cache_latency_bucket{cluster=\"$cluster\",operation=\"HistoryCacheGetOrCreate\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(cache_latency_bucket{app_kubernetes_io_instance=\"$cluster\",operation=\"HistoryCacheGetOrCreate\"}[5m])) by (le))",
           "legendFormat": "History Cache Lock Latency (p99)",
           "refId": "B"
         }
@@ -1315,7 +1315,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
+        "uid": "TemporalMetrics"
       },
       "description": "KEY DIAGNOSTIC: If History >> Persistence + low DB CPU = shard contention. If History \u2248 Persistence + high DB CPU = DB bottleneck.",
       "fieldConfig": {
@@ -1405,18 +1405,18 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(service_latency_bucket{cluster=\"$cluster\",service_name=\"history\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(service_latency_bucket{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\"}[5m])) by (le))",
           "legendFormat": "History Service Latency (p95)",
           "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(persistence_latency_bucket{cluster=\"$cluster\",service_name=\"history\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(persistence_latency_bucket{app_kubernetes_io_instance=\"$cluster\",service_name=\"history\"}[5m])) by (le))",
           "legendFormat": "Persistence Latency (p95)",
           "refId": "B"
         }
@@ -1442,7 +1442,7 @@
           "type": "prometheus",
           "uid": "TemporalMetrics"
         },
-        "query": "label_values(service_requests, cluster)",
+        "query": "label_values(service_requests, app_kubernetes_io_instance)",
         "refresh": 2,
         "includeAll": false,
         "multi": false,

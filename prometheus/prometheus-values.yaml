@@ -1059,33 +1059,18 @@ scrapeConfigs:
         action: replace
         target_label: node
 
-# extraScrapeConfigs adds additional scrape configs to prometheus.yml
-# must be a string so you have to add a | after extraScrapeConfigs:
-# example adds prometheus-blackbox-exporter scrape config
-extraScrapeConfigs: |
-  - job_name: 'temporal-cluster-1'
-    # Temporal server components expose Prometheus metrics on :9090 by default.
-    # Verify against the deployed pods (metrics port can be overridden via
-    # server.dynamicConfig / global.metrics) and adjust if it differs.
-    static_configs:
-      - targets:
-          - cluster-1-temporal-frontend.default.svc.cluster.local:9090
-          - cluster-1-temporal-history.default.svc.cluster.local:9090
-          - cluster-1-temporal-matching.default.svc.cluster.local:9090
-          - cluster-1-temporal-worker.default.svc.cluster.local:9090
-        labels:
-          cluster: cluster-1
-  # cluster-2 only exists once Exercise 4 installs the standby cluster; this
-  # job shows as "down" until then, same as cluster-2's ports in the README.
-  - job_name: 'temporal-cluster-2'
-    static_configs:
-      - targets:
-          - cluster-2-temporal-frontend.default.svc.cluster.local:9090
-          - cluster-2-temporal-history.default.svc.cluster.local:9090
-          - cluster-2-temporal-matching.default.svc.cluster.local:9090
-          - cluster-2-temporal-worker.default.svc.cluster.local:9090
-        labels:
-          cluster: cluster-2
+# Temporal's server components are already scraped via the generic
+# kubernetes-pods job above (pod IP + prometheus.io/scrape annotation), which
+# is how their metrics actually reach Prometheus. A prior static-target
+# extraScrapeConfigs block here (job_name: temporal-cluster-1/-2, targeting
+# each Service's DNS name on :9090) was removed -- verified live that it
+# always showed "down": the Temporal Helm chart's Services only proxy the
+# gRPC/HTTP ports (7233/7243 etc.), not the metrics port, so a Service-DNS
+# target on :9090 can never connect. Per-cluster identity doesn't need a
+# separate label or scrape job at all: every pod already carries the Helm
+# release name (cluster-1 / cluster-2) as app.kubernetes.io/instance, and the
+# kubernetes-pods job's labelmap relabel_config above already promotes that
+# to the Prometheus label app_kubernetes_io_instance for free.
 
 ## Prometheus server ConfigMap entries for rule files (allow prometheus labels interpolation)
 ruleFiles: {}

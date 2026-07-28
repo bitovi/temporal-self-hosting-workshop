@@ -1,23 +1,18 @@
 dashboards:
   default:
-    bitovi-temporal-dashboard-github:
-      url: https://raw.githubusercontent.com/bitovi/Temporal-Self-Hosting-Workshop-Exercises/main/grafana/bitovi_temporal_dashboard.json
-      datasource: TemporalMetrics
-    benchmark-workshop-dashboard-github:
-      url: https://raw.githubusercontent.com/bitovi/Temporal-Self-Hosting-Workshop-Exercises/main/grafana/benchmark_workshop_dashboard.json
-      datasource: TemporalMetrics
+    # bitovi-temporal-dashboard and benchmark-workshop-dashboard (the two
+    # dashboards this repo authors and maintains) are intentionally NOT
+    # listed here. They're loaded from the local grafana/*.json files via
+    # `helm ... --set-file` in _scripts/start.sh, not fetched from GitHub --
+    # this avoids a silent-404 failure mode if this repo's local checkout is
+    # ever ahead of what's pushed to GitHub. See start.sh for the exact keys.
     server-general-github:
       url: https://raw.githubusercontent.com/temporalio/dashboards/helm/server/server-general.json
       datasource: TemporalMetrics
-    sdk-general-github:
-      url: https://raw.githubusercontent.com/temporalio/dashboards/helm/sdk/sdk-general.json
-      datasource: TemporalMetrics
-    misc-advanced-visibility-specific-github:
-      url: https://raw.githubusercontent.com/temporalio/dashboards/helm/misc/advanced-visibility-specific.json
-      datasource: TemporalMetrics
-    misc-clustermonitoring-kubernetes-github:
-      url: https://raw.githubusercontent.com/temporalio/dashboards/helm/misc/clustermonitoring-kubernetes.json
-      datasource: TemporalMetrics
+    # Removed: sdk-general (client/SDK metrics, not server), and
+    # misc-advanced-visibility-specific / misc-clustermonitoring-kubernetes
+    # (neither reports Temporal server metrics, and both were already
+    # silently failing to load -- 0-byte fetches from their GitHub URLs).
     misc-frontend-service-specific-github:
       url: https://raw.githubusercontent.com/temporalio/dashboards/helm/misc/frontend-service-specific.json
       datasource: TemporalMetrics
@@ -488,6 +483,7 @@ datasources:
     apiVersion: 1
     datasources:
       - name: TemporalMetrics
+        uid: TemporalMetrics
         type: prometheus
         url: http://cluster-1-temporal-prometheus-server.default.svc.cluster.local
         access: proxy
