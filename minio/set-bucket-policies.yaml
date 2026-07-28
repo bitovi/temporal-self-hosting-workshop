@@ -14,17 +14,25 @@ spec:
         - /bin/bash
         - -c
         - |
+          # Without set -e, every `mc` command below could fail (bad
+          # credentials, unreachable MinIO, etc.) and this script would still
+          # reach the final echo and exit 0 -- reporting the Job "Complete"
+          # to kubectl even though no bucket policy was actually set. This
+          # was confirmed live: a bad MinIO password made every `mc` call
+          # below fail, yet the Job still reported Complete.
+          set -e
+
           # Set alias for local MinIO
           mc alias set minio http://minio:9000 admin temporal --api S3v4
-          
+
           # Set bucket policy to allow authenticated users to read using correct syntax
           mc anonymous set download minio/temporal-archival
           mc anonymous set download minio/temporal-visibility
-          
+
           # Verify buckets are accessible
-          mc ls minio/temporal-archival || echo "Failed to access temporal-archival"
-          mc ls minio/temporal-visibility || echo "Failed to access temporal-visibility"
-          
+          mc ls minio/temporal-archival
+          mc ls minio/temporal-visibility
+
           echo "Bucket policies set successfully"
       restartPolicy: Never
   backoffLimit: 3
