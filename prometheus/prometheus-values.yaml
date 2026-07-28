@@ -1073,6 +1073,19 @@ extraScrapeConfigs: |
           - cluster-1-temporal-history.default.svc.cluster.local:9090
           - cluster-1-temporal-matching.default.svc.cluster.local:9090
           - cluster-1-temporal-worker.default.svc.cluster.local:9090
+        labels:
+          cluster: cluster-1
+  # cluster-2 only exists once Exercise 4 installs the standby cluster; this
+  # job shows as "down" until then, same as cluster-2's ports in the README.
+  - job_name: 'temporal-cluster-2'
+    static_configs:
+      - targets:
+          - cluster-2-temporal-frontend.default.svc.cluster.local:9090
+          - cluster-2-temporal-history.default.svc.cluster.local:9090
+          - cluster-2-temporal-matching.default.svc.cluster.local:9090
+          - cluster-2-temporal-worker.default.svc.cluster.local:9090
+        labels:
+          cluster: cluster-2
 
 ## Prometheus server ConfigMap entries for rule files (allow prometheus labels interpolation)
 ruleFiles: {}

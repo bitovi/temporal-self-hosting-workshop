@@ -27,11 +27,11 @@ server:
           s3ForcePathStyle: true
 
   config:
-    numHistoryShards: 1024
     persistence:
       defaultStore: default
       visibilityStore: visibility
-      numHistoryShards: 512
+      # Important: numHistoryShards cannot be changed after the initial deployment.
+      numHistoryShards: 256
       datastores:
         default:
           sql:

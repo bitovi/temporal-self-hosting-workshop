@@ -15,7 +15,7 @@
       }
     ]
   },
-  "description": "Bitovi's Expanded Temporal Server Metrics Dashboard",
+  "description": "Bitovi's general-purpose Temporal server production dashboard. Not workshop-specific -- use $cluster / $namespace to scope any deployment, single- or multi-cluster.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -23,12 +23,27 @@
   "links": [],
   "panels": [
     {
+      "id": 1,
+      "type": "text",
+      "title": "How to Read This Dashboard",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**Scope everything below with `$cluster`** (top left) -- it defaults to *All*, which blends every cluster's numbers together. Pick a single cluster before reading any panel as a latency/error-rate number, or you'll be looking at a mix of two deployments. `$namespace` works the same way for the handful of panels that break down by namespace.\n\n**Row guide:**\n- *Persistence / Service Availability / Service Performance / Activity / External Event / Workflow Monitoring* -- core server health. Start here for \"is the cluster OK.\"\n- *Cluster Access / Client Monitoring* -- who's calling the cluster and how it's responding to them.\n- *Service Health / State Transition / History Shards* -- resource usage and the shard layer underneath persistence.\n- *Worker Performance* -- SDK-side metrics from your own worker process, not the server. These are **not** scoped by `$cluster` (a worker connects to one cluster address at a time; the metric itself carries no cluster label).\n- *Task Queue Backlog* -- is a task queue falling behind. Backlog Count and Backlog Age answer different questions: a small-but-old backlog still means requests are waiting.\n- *Multi-Cluster Replication* -- only meaningful once more than one cluster exists. Latency, Task Lag, and Receive Backlog are three different angles on the same question (\"how far behind is my standby\") -- latency alone can look fine while lag or backlog quietly grows.\n- *Visibility* -- the search/list-workflows indexing pipeline, separate from the execution path above.\n\n**Reading thresholds:** panels with green/yellow/red coloring have those baked in from operational experience with this workload; treat them as a starting point, not gospel -- recalibrate for your own traffic pattern."
+      }
+    },
+    {
       "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 0
+        "y": 7
       },
       "id": 13,
       "panels": [
@@ -125,13 +140,13 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (operation, node) (rate(persistence_requests{}[2m]))",
+              "expr": "sum by (operation, node) (rate(persistence_requests{cluster=\"$cluster\"}[2m]))",
               "legendFormat": "{{operation}}",
               "range": true,
               "refId": "G"
             }
           ],
-          "title": "Persistence Requests by Operation (Trend 5m Rate)",
+          "title": "Persistence Requests by Operation (Trend 2m Rate)",
           "type": "timeseries"
         },
         {
@@ -139,7 +154,7 @@
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "The number of persistence requests over the time range selected., grouped by cluster operation.",
+          "description": "Total persistence requests over the last 2 minutes, grouped by operation. The prior '> 50' filter on this query was removed -- it silently hid any operation with fewer than 50 requests in the window, which would mask real low-traffic namespaces rather than just decluttering the display.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -191,13 +206,13 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (operation) (increase(persistence_requests{}[2m])) > 50",
+              "expr": "sum by (operation) (increase(persistence_requests{cluster=\"$cluster\"}[2m]))",
               "legendFormat": "{{operation}}",
               "range": true,
               "refId": "F"
             }
           ],
-          "title": "Persistence Requests by Operation (5m Rate Total)",
+          "title": "Persistence Requests by Operation (2m Rate Total)",
           "type": "gauge"
         },
         {
@@ -290,7 +305,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum(rate(lock_latency_bucket{operation=\"ShardInfo\"}[2m])) by (le))",
+              "expr": "histogram_quantile(0.99, sum(rate(lock_latency_bucket{cluster=\"$cluster\",operation=\"ShardInfo\"}[2m])) by (le))",
               "legendFormat": "p99 shard lock",
               "range": true,
               "refId": "E"
@@ -389,7 +404,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum(rate(cache_latency_bucket{operation=\"HistoryCacheGetOrCreate\"}[2m])) by (le))",
+              "expr": "histogram_quantile(0.99, sum(rate(cache_latency_bucket{cluster=\"$cluster\",operation=\"HistoryCacheGetOrCreate\"}[2m])) by (le))",
               "legendFormat": "p99 history cache lock",
               "range": true,
               "refId": "D"
@@ -408,7 +423,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 1
+        "y": 8
       },
       "id": 22,
       "panels": [
@@ -469,7 +484,7 @@
                 "type": "prometheus",
                 "uid": "TemporalMetrics"
               },
-              "expr": "sum(rate(service_requests{operation=\"AddActivityTask\"}[2m]))",
+              "expr": "sum(rate(service_requests{cluster=\"$cluster\",operation=\"AddActivityTask\"}[2m]))",
               "legendFormat": "AddActivityTask",
               "refId": "A"
             }
@@ -534,7 +549,7 @@
                 "type": "prometheus",
                 "uid": "TemporalMetrics"
               },
-              "expr": "sum(rate(service_requests{operation=\"RecordActivityTaskStarted\"}[2m]))",
+              "expr": "sum(rate(service_requests{cluster=\"$cluster\",operation=\"RecordActivityTaskStarted\"}[2m]))",
               "legendFormat": "RecordActivityTaskStarted",
               "refId": "B"
             }
@@ -599,7 +614,7 @@
                 "type": "prometheus",
                 "uid": "TemporalMetrics"
               },
-              "expr": "sum(rate(service_requests{operation=~\"RespondActivityTaskCompleted|RespondActivityTaskFailed|RespondActivityTaskCanceled\"}[2m]))",
+              "expr": "sum(rate(service_requests{cluster=\"$cluster\",operation=~\"RespondActivityTaskCompleted|RespondActivityTaskFailed|RespondActivityTaskCanceled\"}[2m]))",
               "legendFormat": "ActivityTask Completed/Failed/Canceled",
               "refId": "C"
             }
@@ -617,7 +632,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 2
+        "y": 9
       },
       "id": 2,
       "panels": [
@@ -680,7 +695,7 @@
                 "type": "prometheus",
                 "uid": "TemporalMetrics"
               },
-              "expr": "100 - (sum(rate(service_errors{}[2m]) OR on() vector(0)) / sum(rate(service_requests{}[2m])) * 100)",
+              "expr": "100 - (sum(rate(service_errors{cluster=\"$cluster\"}[2m]) OR on() vector(0)) / sum(rate(service_requests{cluster=\"$cluster\"}[2m])) * 100)",
               "legendFormat": "Availability",
               "refId": "A"
             }
@@ -747,7 +762,7 @@
                 "type": "prometheus",
                 "uid": "TemporalMetrics"
               },
-              "expr": "100 - (sum(rate(persistence_errors{}[2m]) OR on() vector(0)) / sum(rate(persistence_requests{}[2m])) * 100)",
+              "expr": "100 - (sum(rate(persistence_errors{cluster=\"$cluster\"}[2m]) OR on() vector(0)) / sum(rate(persistence_requests{cluster=\"$cluster\"}[2m])) * 100)",
               "legendFormat": "Success %",
               "refId": "E"
             }
@@ -760,7 +775,7 @@
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "Number of errors by type for service_name=\"frontend\" in the time range selected.",
+          "description": "Number of errors by type for service_name=\"frontend\" in the time range selected. (The prior '> 10' filter was removed for consistency with the matching/worker panels below and so low-but-real error counts aren't hidden outright -- use the panel's color thresholds to judge severity instead.)",
           "fieldConfig": {
             "defaults": {
               "decimals": 0,
@@ -820,7 +835,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum(increase(service_error_with_type{service_name=\"frontend\"}[5m])) by (error_type) > 10",
+              "expr": "sum(increase(service_error_with_type{cluster=\"$cluster\",service_name=\"frontend\"}[5m])) by (error_type)",
               "legendFormat": "{{error_type}}",
               "range": true,
               "refId": "B"
@@ -834,7 +849,7 @@
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "Number of errors by type for service_name=\"history\" in the time range selected.",
+          "description": "Number of errors by type for service_name=\"history\" in the time range selected. (See the frontend panel's note on why the '> 10' filter was removed.)",
           "fieldConfig": {
             "defaults": {
               "decimals": 0,
@@ -895,7 +910,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "sum(increase(service_error_with_type{service_name=\"history\"}[5m])) by (error_type) > 10",
+              "expr": "sum(increase(service_error_with_type{cluster=\"$cluster\",service_name=\"history\"}[5m])) by (error_type)",
               "instant": false,
               "legendFormat": "{{error_type}}",
               "range": true,
@@ -970,7 +985,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum(increase(service_error_with_type{service_name=\"matching\"}[2m])) by (error_type)",
+              "expr": "sum(increase(service_error_with_type{cluster=\"$cluster\",service_name=\"matching\"}[2m])) by (error_type)",
               "legendFormat": "{{error_type}}",
               "range": true,
               "refId": "B"
@@ -1044,7 +1059,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum(increase(service_error_with_type{service_name=\"worker\"}[2m])) by (error_type)",
+              "expr": "sum(increase(service_error_with_type{cluster=\"$cluster\",service_name=\"worker\"}[2m])) by (error_type)",
               "legendFormat": "{{error_type}}",
               "range": true,
               "refId": "B"
@@ -1140,7 +1155,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (exported_namespace, resource_exhausted_cause, service_name) (rate(service_errors_resource_exhausted{}[2m]))",
+              "expr": "sum by (exported_namespace, resource_exhausted_cause, service_name) (rate(service_errors_resource_exhausted{cluster=\"$cluster\"}[2m]))",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -1148,7 +1163,8 @@
             }
           ],
           "title": "Resource exhaustion by namespace, cause and servicename",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of 'resource exhausted' errors by namespace and cause. Sustained non-zero values mean a namespace is hitting a configured rate limit."
         },
         {
           "datasource": {
@@ -1237,7 +1253,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (service_name, resource_exhausted_cause) (rate(service_errors_entity_not_found{}[2m]))",
+              "expr": "sum by (service_name, resource_exhausted_cause) (rate(service_errors_entity_not_found{cluster=\"$cluster\"}[2m]))",
               "hide": false,
               "interval": "",
               "legendFormat": "__auto",
@@ -1249,7 +1265,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (service_name, resource_exhausted_cause) (rate(service_errors_execution_already_started{}[2m]))",
+              "expr": "sum by (service_name, resource_exhausted_cause) (rate(service_errors_execution_already_started{cluster=\"$cluster\"}[2m]))",
               "hide": false,
               "interval": "",
               "legendFormat": "__auto",
@@ -1261,7 +1277,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (service_name, resource_exhausted_cause) (rate(service_errors_resource_exhausted{}[2m]))",
+              "expr": "sum by (service_name, resource_exhausted_cause) (rate(service_errors_resource_exhausted{cluster=\"$cluster\"}[2m]))",
               "hide": false,
               "interval": "",
               "legendFormat": "__auto",
@@ -1270,7 +1286,8 @@
             }
           ],
           "title": "Service Errors Break Down ",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of three specific error types (entity not found, execution already started, resource exhausted) by service. Useful for distinguishing client misuse (not found / already started) from genuine overload (resource exhausted)."
         },
         {
           "datasource": {
@@ -1360,7 +1377,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum(rate(cache_latency_bucket{operation=\"HistoryCacheGetOrCreate\"}[2m])) by (le))",
+              "expr": "histogram_quantile(0.99, sum(rate(cache_latency_bucket{cluster=\"$cluster\",operation=\"HistoryCacheGetOrCreate\"}[2m])) by (le))",
               "instant": true,
               "legendFormat": "__auto",
               "range": true,
@@ -1368,7 +1385,8 @@
             }
           ],
           "title": "latency for HistoryCacheGetOrCreate operation",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "99th percentile HistoryCacheGetOrCreate latency -- duplicate view of the same signal as 'History Cache Lock Latency (p99)' in the Persistence row above, kept here for convenience while reviewing Service Availability."
         }
       ],
       "title": "Service Availability Monitoring",
@@ -1380,7 +1398,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 3
+        "y": 10
       },
       "id": 8,
       "panels": [
@@ -1474,7 +1492,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.95, sum(rate(service_latency_bucket{service_name=\"frontend\"}[2m])) by (operation, le))",
+              "expr": "histogram_quantile(0.95, sum(rate(service_latency_bucket{cluster=\"$cluster\",service_name=\"frontend\"}[2m])) by (operation, le))",
               "legendFormat": "{{operation}}",
               "range": true,
               "refId": "C"
@@ -1488,7 +1506,7 @@
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "The 95th percentile latency of gRPC calls to the 'frontend' service, grouped by operation over the time range selected. Substitute another service_name as needed.",
+          "description": "The 95th percentile latency of gRPC calls to the 'matching' service, grouped by operation over the time range selected.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1573,7 +1591,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.95, sum(rate(service_latency_bucket{service_name=\"matching\"}[2m])) by (operation, le))",
+              "expr": "histogram_quantile(0.95, sum(rate(service_latency_bucket{cluster=\"$cluster\",service_name=\"matching\"}[2m])) by (operation, le))",
               "legendFormat": "{{operation}}",
               "range": true,
               "refId": "C"
@@ -1587,7 +1605,7 @@
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "The 95th percentile latency of gRPC calls to the 'frontend' service, grouped by operation over the time range selected. Substitute another service_name as needed.",
+          "description": "The 95th percentile latency of gRPC calls to the 'history' service, grouped by operation over the time range selected.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -1672,7 +1690,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.95, sum(rate(service_latency_bucket{service_name=\"history\"}[2m])) by (operation, le))",
+              "expr": "histogram_quantile(0.95, sum(rate(service_latency_bucket{cluster=\"$cluster\",service_name=\"history\"}[2m])) by (operation, le))",
               "legendFormat": "{{operation}}",
               "range": true,
               "refId": "C"
@@ -1691,7 +1709,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 4
+        "y": 11
       },
       "id": 14,
       "panels": [
@@ -1784,7 +1802,7 @@
                 "type": "prometheus",
                 "uid": "TemporalMetrics"
               },
-              "expr": "sum by (operation) (rate(service_requests{operation=~\"StartWorkflowExecution|SignalWorkflowExecution|SignalWithStartWorkflowExecution\"}[2m]))",
+              "expr": "sum by (operation) (rate(service_requests{cluster=\"$cluster\",operation=~\"StartWorkflowExecution|SignalWorkflowExecution|SignalWithStartWorkflowExecution\"}[2m]))",
               "legendFormat": "{{operation}}",
               "refId": "H"
             }
@@ -1797,308 +1815,312 @@
       "type": "row"
     },
     {
-      "collapsed": false,
+      "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 5
+        "y": 12
       },
       "id": 16,
-      "panels": [],
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 6
+          },
+          "id": 96,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "maxHeight": 600,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.95, sum by (namespace, le, task_type)(rate(task_schedule_to_start_latency_bucket{cluster=\"$cluster\"}[2m])))",
+              "instant": false,
+              "legendFormat": "{{namespace}} - {{ task_type }}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "schedule to start 95% latency by (namespace - task_type)",
+          "type": "timeseries",
+          "description": "95th percentile schedule-to-start latency broken down by namespace and task type -- the widest-angle view of queueing delay in this dashboard."
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 15
+          },
+          "id": 93,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "maxHeight": 600,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.95, sum by (namespace, le)(rate(activity_start_to_close_latency_bucket{cluster=\"$cluster\"}[2m])))",
+              "instant": false,
+              "legendFormat": "{{namespace}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "95% latency of activity start to close duration",
+          "type": "timeseries",
+          "description": "95th percentile time from an activity being scheduled to it reaching a terminal (closed) state, by namespace."
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 23
+          },
+          "id": 95,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "maxHeight": 600,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "editorMode": "code",
+              "expr": "histogram_quantile(0.95, sum(rate(temporal_workflow_endtoend_latency_bucket{}[2m])) by (le, namespace, task_queue))",
+              "instant": false,
+              "legendFormat": "{{namespace}} - {{taskqueue}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "95% latency of Workflow schedule to close duration",
+          "type": "timeseries",
+          "description": "95th percentile workflow schedule-to-close duration. Fixed from a fabricated metric name (workflow_duration_bucket, which doesn't exist in Temporal's server or SDK metrics -- this panel always returned no data) to the SDK's real end-to-end latency histogram. Sourced from the worker process, not the server -- not scoped by $cluster."
+        }
+      ],
       "title": "Workflow Monitoring",
       "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 6
-      },
-      "id": 96,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
-          },
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (namespace, le, task_type)(rate(task_schedule_to_start_latency_bucket{}[2m])))",
-          "instant": false,
-          "legendFormat": "{{namespace}} - {{ task_type }}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "schedule to start 95% latency by (namespace - task_type)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 15
-      },
-      "id": 93,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
-          },
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (namespace, le)(rate(activity_start_to_close_latency_bucket[2m])))",
-          "instant": false,
-          "legendFormat": "{{namespace}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "95% latency of activity start to close duration",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1E53E98DCFC0B173"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
-        "y": 23
-      },
-      "id": 95,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
-          },
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum(rate(workflow_duration_bucket{}[2m])) by (le, namespace, taskqueue))",
-          "instant": false,
-          "legendFormat": "{{namespace}} - {{taskqueue}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "95% latency of Workflow schedule to close duration",
-      "type": "timeseries"
     },
     {
       "collapsed": true,
@@ -2106,7 +2128,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 13
       },
       "id": 79,
       "panels": [
@@ -2198,7 +2220,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (service_name, namespace) (rate(service_requests{service_name=\"frontend\", app_kubernetes_io_headless=\"\", namespace=~\"${namespace}\"}[2m])) * 120",
+              "expr": "sum by (service_name, namespace) (rate(service_requests{cluster=\"$cluster\",service_name=\"frontend\", app_kubernetes_io_headless=\"\", namespace=~\"${namespace}\"}[2m])) * 120",
               "instant": true,
               "legendFormat": "__auto",
               "range": true,
@@ -2210,7 +2232,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (service_name, namespace)  (rate(service_requests{service_name=\"history\", app_kubernetes_io_headless=\"\", namespace=~\"${namespace}\"}[2m])) * 120",
+              "expr": "sum by (service_name, namespace)  (rate(service_requests{cluster=\"$cluster\",service_name=\"history\", app_kubernetes_io_headless=\"\", namespace=~\"${namespace}\"}[2m])) * 120",
               "hide": false,
               "instant": true,
               "key": "Q-b146a74e-ba7d-4cea-8d85-d01d7a6d83a7-1",
@@ -2220,7 +2242,8 @@
             }
           ],
           "title": "Service Requests (by namespace)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "gRPC requests over the last 2 minutes to the frontend and history services, by namespace. Requires the $namespace variable (now defined) to actually filter -- previously referenced an undefined ${namespace} and always returned empty."
         },
         {
           "datasource": {
@@ -2335,7 +2358,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (service_name) (rate(service_errors{service_name=\"frontend\", app_kubernetes_io_headless=\"\", namespace=~\"${namespace}\"}[2m])) ",
+              "expr": "sum by (service_name) (rate(service_errors{cluster=\"$cluster\",service_name=\"frontend\", app_kubernetes_io_headless=\"\", namespace=~\"${namespace}\"}[2m])) ",
               "hide": false,
               "instant": true,
               "legendFormat": "__auto",
@@ -2348,7 +2371,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (service_name) (rate(service_errors{service_name=\"history\", app_kubernetes_io_headless=\"\", namespace=~\"${namespace}\"}[2m]))",
+              "expr": "sum by (service_name) (rate(service_errors{cluster=\"$cluster\",service_name=\"history\", app_kubernetes_io_headless=\"\", namespace=~\"${namespace}\"}[2m]))",
               "hide": false,
               "instant": true,
               "key": "Q-b146a74e-ba7d-4cea-8d85-d01d7a6d83a7-1",
@@ -2358,7 +2381,8 @@
             }
           ],
           "title": "Service Errors (by namespace)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "gRPC errors over 2 minute windows to the frontend and history services, by namespace. Same $namespace fix as the panel above."
         },
         {
           "datasource": {
@@ -2448,7 +2472,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum by (operation, le) (rate(service_latency_bucket{operation=~\"StartWorkflowExecution|SignalWorkflowExecution|RespondWorkflowTaskCompleted|RespondActivityTaskCompleted\", service_name=\"frontend\"}[2m])))",
+              "expr": "histogram_quantile(0.99, sum by (operation, le) (rate(service_latency_bucket{cluster=\"$cluster\",operation=~\"StartWorkflowExecution|SignalWorkflowExecution|RespondWorkflowTaskCompleted|RespondActivityTaskCompleted\", service_name=\"frontend\"}[2m])))",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -2456,7 +2480,8 @@
             }
           ],
           "title": "API Latencies (Frontend)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "99th percentile latency of the four core workflow-lifecycle APIs (Start/Signal/RespondWorkflowTaskCompleted/RespondActivityTaskCompleted) on the frontend service."
         },
         {
           "datasource": {
@@ -2546,7 +2571,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99, sum by (operation, le) (rate(service_latency_bucket{operation=~\"StartWorkflowExecution|SignalWorkflowExecution|RespondWorkflowTaskCompleted|RespondActivityTaskCompleted\", service_name=\"history\"}[2m])))",
+              "expr": "histogram_quantile(0.99, sum by (operation, le) (rate(service_latency_bucket{cluster=\"$cluster\",operation=~\"StartWorkflowExecution|SignalWorkflowExecution|RespondWorkflowTaskCompleted|RespondActivityTaskCompleted\", service_name=\"history\"}[2m])))",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -2554,7 +2579,8 @@
             }
           ],
           "title": "API Latencies (History)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Same four core APIs as the Frontend panel, measured at the history service -- compare the two to see how much latency is added between frontend and history."
         },
         {
           "datasource": {
@@ -2643,7 +2669,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (namespace, operation) (service_pending_requests{service_name=\"frontend\"})",
+              "expr": "sum by (namespace, operation) (service_pending_requests{cluster=\"$cluster\",service_name=\"frontend\"})",
               "format": "time_series",
               "hide": false,
               "instant": false,
@@ -2653,7 +2679,8 @@
             }
           ],
           "title": "Pending Requests per namespace and operation (Frontend)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Requests queued waiting on the frontend service, by namespace and operation. Non-zero and growing means the frontend can't keep up with incoming request volume."
         }
       ],
       "title": "Cluster Access",
@@ -2665,7 +2692,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 33
+        "y": 14
       },
       "id": 84,
       "panels": [
@@ -2754,14 +2781,15 @@
           "targets": [
             {
               "editorMode": "code",
-              "expr": "sum by (operation, error_type, service_name) (rate(client_errors{service_name=\"frontend\",service_role=\"history\"}[5m]))",
+              "expr": "sum by (operation, error_type, service_name) (rate(client_errors{cluster=\"$cluster\",service_name=\"frontend\",service_role=\"history\"}[5m]))",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
             }
           ],
           "title": "client_errors per second",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Client-side gRPC errors per second between internal Temporal services, by operation and error type."
         },
         {
           "datasource": {
@@ -2851,7 +2879,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum(rate(persistence_requests{operation=\"CreateTask\"}[2m]))",
+              "expr": "sum(rate(persistence_requests{cluster=\"$cluster\",operation=\"CreateTask\"}[2m]))",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -2859,7 +2887,8 @@
             }
           ],
           "title": "Sum of CreateTasks (2m)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of CreateTask persistence calls -- new tasks being written to a task queue."
         },
         {
           "datasource": {
@@ -2949,7 +2978,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.95,\n  sum by (namespace, task_type, operation, le) (rate(task_schedule_to_start_latency_bucket{namespace=~\"${namespace}\"}[2m]))\n)",
+              "expr": "histogram_quantile(0.95,\n  sum by (namespace, task_type, operation, le) (rate(task_schedule_to_start_latency_bucket{cluster=\"$cluster\",namespace=~\"${namespace}\"}[2m]))\n)",
               "hide": false,
               "instant": false,
               "legendFormat": "__auto",
@@ -2958,14 +2987,15 @@
             }
           ],
           "title": "Schedule to Start Latency (Per operation/namespace/type)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "95th percentile schedule-to-start latency by namespace, task type, and operation. Requires $namespace to filter -- previously always empty (see the note on the panels above)."
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "Rate of timeouts over 2 minute ranges",
+          "description": "Rate of workflow-task start-to-close timeouts over 2 minute windows, by namespace. Sustained non-zero values mean workers aren't completing tasks before the configured StartToClose timeout.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -3049,27 +3079,14 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (namespace, operation) (rate(start_to_close_timeout{operation=\"TimerActiveTaskWorkflowTaskTimeout\"}[2m]))",
+              "expr": "sum by (namespace, operation) (rate(start_to_close_timeout{cluster=\"$cluster\",operation=\"TimerActiveTaskWorkflowTaskTimeout\"}[2m]))",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "TemporalMetrics"
-              },
-              "editorMode": "code",
-              "expr": "",
-              "hide": false,
-              "instant": false,
-              "legendFormat": "__auto",
-              "range": true,
-              "refId": "B"
             }
           ],
-          "title": "Sum of Start to Close timeouts (5m)",
+          "title": "Sum of Start to Close Timeouts (2m)",
           "type": "timeseries"
         },
         {
@@ -3160,7 +3177,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.99,\nsum by (le)(rate(cache_latency_bucket{operation=\"HistoryCacheGetOrCreate\"}[2m]))\n)",
+              "expr": "histogram_quantile(0.99,\nsum by (le)(rate(cache_latency_bucket{cluster=\"$cluster\",operation=\"HistoryCacheGetOrCreate\"}[2m]))\n)",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -3168,7 +3185,8 @@
             }
           ],
           "title": "per-workflow-lock latency (2m)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "99th percentile per-workflow lock acquisition latency (HistoryCacheGetOrCreate). High values mean workflows are contending for the same in-memory cache entry, usually from concurrent signals/updates to one workflow."
         }
       ],
       "title": "Client Monitoring",
@@ -3180,7 +3198,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 34
+        "y": 15
       },
       "id": 26,
       "panels": [
@@ -3272,7 +3290,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (container)(rate(container_cpu_usage_seconds_total{container=\"temporal-history\"}[2m]))",
+              "expr": "sum by (container)(rate(container_cpu_usage_seconds_total{container=\"temporal-history\",pod=~\"$cluster-temporal-.*\"}[2m]))",
               "hide": false,
               "instant": false,
               "legendFormat": "__auto",
@@ -3285,7 +3303,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (container)(rate(container_cpu_usage_seconds_total{container=\"temporal-frontend\"}[2m]))",
+              "expr": "sum by (container)(rate(container_cpu_usage_seconds_total{container=\"temporal-frontend\",pod=~\"$cluster-temporal-.*\"}[2m]))",
               "hide": false,
               "instant": false,
               "legendFormat": "__auto",
@@ -3298,7 +3316,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (container)(rate(container_cpu_usage_seconds_total{container=\"temporal-matching\"}[2m]))",
+              "expr": "sum by (container)(rate(container_cpu_usage_seconds_total{container=\"temporal-matching\",pod=~\"$cluster-temporal-.*\"}[2m]))",
               "hide": false,
               "instant": false,
               "legendFormat": "__auto",
@@ -3311,7 +3329,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (container)(rate(container_cpu_usage_seconds_total{container=\"temporal-worker\"}[2m]))",
+              "expr": "sum by (container)(rate(container_cpu_usage_seconds_total{container=\"temporal-worker\",pod=~\"$cluster-temporal-.*\"}[2m]))",
               "hide": false,
               "instant": false,
               "legendFormat": "__auto",
@@ -3320,12 +3338,13 @@
             }
           ],
           "title": "Temporal Services Cores Used",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "CPU cores used per Temporal service container, filtered to the selected $cluster's pods. Sustained highs relative to requested/limit CPU indicate a compute bottleneck."
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P1E53E98DCFC0B173"
+            "uid": "TemporalMetrics"
           },
           "fieldConfig": {
             "defaults": {
@@ -3410,7 +3429,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (container) (container_memory_usage_bytes{container=\"temporal-frontend\"}) / 1024 / 1024",
+              "expr": "sum by (container) (container_memory_usage_bytes{container=\"temporal-frontend\",pod=~\"$cluster-temporal-.*\"}) / 1024 / 1024",
               "hide": false,
               "instant": false,
               "legendFormat": "__auto",
@@ -3423,7 +3442,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (container) (container_memory_usage_bytes{container=\"temporal-history\"}) / 1024 / 1024",
+              "expr": "sum by (container) (container_memory_usage_bytes{container=\"temporal-history\",pod=~\"$cluster-temporal-.*\"}) / 1024 / 1024",
               "hide": false,
               "instant": false,
               "legendFormat": "__auto",
@@ -3436,7 +3455,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (container) (container_memory_usage_bytes{container=\"temporal-matching\"}) / 1024 / 1024",
+              "expr": "sum by (container) (container_memory_usage_bytes{container=\"temporal-matching\",pod=~\"$cluster-temporal-.*\"}) / 1024 / 1024",
               "hide": false,
               "instant": false,
               "legendFormat": "__auto",
@@ -3449,7 +3468,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (container) (container_memory_usage_bytes{container=\"temporal-worker\"}) / 1024 / 1024",
+              "expr": "sum by (container) (container_memory_usage_bytes{container=\"temporal-worker\",pod=~\"$cluster-temporal-.*\"}) / 1024 / 1024",
               "hide": false,
               "instant": false,
               "legendFormat": "__auto",
@@ -3458,7 +3477,8 @@
             }
           ],
           "title": "Temporal Services Memory used (MiB)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Memory used (MiB) per Temporal service container, filtered to the selected $cluster's pods."
         },
         {
           "datasource": {
@@ -3524,7 +3544,7 @@
                 "type": "prometheus",
                 "uid": "TemporalMetrics"
               },
-              "expr": "sum by (temporal_service_type) (increase(restarts{}[2m]))",
+              "expr": "sum by (temporal_service_type) (increase(restarts{cluster=\"$cluster\"}[2m]))",
               "legendFormat": "{{temporal_service_type}}",
               "refId": "A"
             }
@@ -3597,7 +3617,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum(rate(service_errors_resource_exhausted{}[2m])) by (resource_exhausted_cause)",
+              "expr": "sum(rate(service_errors_resource_exhausted{cluster=\"$cluster\"}[2m])) by (resource_exhausted_cause)",
               "legendFormat": "{{resource_exhausted_cause}}",
               "range": true,
               "refId": "B"
@@ -3616,7 +3636,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 35
+        "y": 16
       },
       "id": 29,
       "panels": [
@@ -3710,7 +3730,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (namespace) (rate(state_transition_count_count{namespace!=\"temporal_system\"}[2m]))",
+              "expr": "sum by (namespace) (rate(state_transition_count_count{cluster=\"$cluster\",namespace!=\"temporal_system\"}[2m]))",
               "legendFormat": "StateTransitions",
               "range": true,
               "refId": "C"
@@ -3806,7 +3826,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (operation) (rate(persistence_requests{operation=~\"CreateWorkflowExecution|UpdateWorkflowExecution\"}[2m]))",
+              "expr": "sum by (operation) (rate(persistence_requests{cluster=\"$cluster\",operation=~\"CreateWorkflowExecution|UpdateWorkflowExecution\"}[2m]))",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -3814,7 +3834,8 @@
             }
           ],
           "title": "Persistence Requests (Create|Update)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of the two state-mutating persistence operations (CreateWorkflowExecution, UpdateWorkflowExecution) -- the direct driver of state-transition throughput."
         },
         {
           "datasource": {
@@ -3903,7 +3924,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum by (operation) (rate(persistence_requests{}[2m]))",
+              "expr": "sum by (operation) (rate(persistence_requests{cluster=\"$cluster\"}[2m]))",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -3911,7 +3932,8 @@
             }
           ],
           "title": "Persistence Requests (all operations)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Rate of all persistence operations by type. Compare against the Create/Update panel to see how much load is mutation vs. everything else (reads, task writes, etc.)."
         },
         {
           "datasource": {
@@ -4000,7 +4022,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum (rate(persistence_requests{}[2m]))",
+              "expr": "sum (rate(persistence_requests{cluster=\"$cluster\"}[2m]))",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -4008,7 +4030,8 @@
             }
           ],
           "title": "Persistence Requests (total)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Total persistence request rate across all operation types, cluster-wide."
         }
       ],
       "title": "State Transition Monitoring",
@@ -4020,7 +4043,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 36
+        "y": 17
       },
       "id": 31,
       "panels": [
@@ -4114,7 +4137,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum(rate(membership_changed_count{}[2m])) *120",
+              "expr": "sum(rate(membership_changed_count{cluster=\"$cluster\"}[2m])) *120",
               "legendFormat": "ShardRebalances",
               "range": true,
               "refId": "D"
@@ -4125,7 +4148,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "sum(rate(sharditem_created_count{}[2m]))*120",
+              "expr": "sum(rate(sharditem_created_count{cluster=\"$cluster\"}[2m]))*120",
               "hide": false,
               "instant": false,
               "legendFormat": "Shard Created",
@@ -4224,7 +4247,7 @@
               },
               "editorMode": "code",
               "exemplar": false,
-              "expr": "numshards_gauge{app_kubernetes_io_headless=\"\"}",
+              "expr": "numshards_gauge{cluster=\"$cluster\",app_kubernetes_io_headless=\"\"}",
               "hide": false,
               "instant": false,
               "legendFormat": "{{pod}}",
@@ -4233,7 +4256,8 @@
             }
           ],
           "title": "Shard distribution",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "Configured shard count as reported live by each history host (numshards_gauge). All hosts in a cluster should report the same value; a mismatch indicates a mid-rollout config change."
         }
       ],
       "title": "History Shards",
@@ -4245,7 +4269,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 37
+        "y": 18
       },
       "id": 33,
       "panels": [
@@ -4254,7 +4278,7 @@
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "Average number of worker task slots available for WorkflowWorker in the time range selected. Hitting zero indicates worker backlog.",
+          "description": "Average number of worker task slots available for WorkflowWorker in the time range selected. Hitting zero indicates worker backlog. Sourced from the worker process's own SDK metrics, not the server -- not scoped by $cluster.",
           "fieldConfig": {
             "defaults": {
               "decimals": 0,
@@ -4319,7 +4343,7 @@
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "Latency from when a workflow task enters the queue to when a worker picks it up in the time range selected. Monitor per namespace and task queue.",
+          "description": "95th percentile latency from when a workflow task enters the queue to when a worker picks it up, by namespace and task queue. Sourced from the worker process's own SDK metrics, not the server -- not scoped by $cluster since a worker connects to whichever cluster address it was started against.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -4403,7 +4427,7 @@
                 "type": "prometheus",
                 "uid": "TemporalMetrics"
               },
-              "expr": "sum by (namespace, task_queue) (rate(temporal_workflow_task_schedule_to_start_latency_seconds_bucket{}[2m]))",
+              "expr": "histogram_quantile(0.95, sum by (namespace, task_queue, le) (rate(temporal_workflow_task_schedule_to_start_latency_seconds_bucket{}[2m])))",
               "legendFormat": "{{namespace}}:{{task_queue}}",
               "refId": "F"
             }
@@ -4416,7 +4440,7 @@
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "Latency from when an activity task enters the queue to when a worker picks it up in the time range selected. Monitor per namespace and task queue.",
+          "description": "95th percentile latency from when an activity task enters the queue to when a worker picks it up, by namespace and task queue. Same SDK-metric caveat as the workflow-task panel above -- not scoped by $cluster.",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -4500,7 +4524,7 @@
                 "type": "prometheus",
                 "uid": "TemporalMetrics"
               },
-              "expr": "sum by (namespace, task_queue) (rate(temporal_activity_schedule_to_start_latency_seconds_bucket{}[2m]))",
+              "expr": "histogram_quantile(0.95, sum by (namespace, task_queue, le) (rate(temporal_activity_schedule_to_start_latency_seconds_bucket{}[2m])))",
               "legendFormat": "{{namespace}}:{{task_queue}}",
               "refId": "G"
             }
@@ -4513,7 +4537,7 @@
             "type": "prometheus",
             "uid": "TemporalMetrics"
           },
-          "description": "The 'sync match rate' between workers and matching service during the time range selected. High rates reduce task latency and persistence load.",
+          "description": "The 'sync match rate' between workers and matching service during the time range selected. High rates reduce task latency and persistence load. Sourced from the worker process's own SDK metrics, not the server -- not scoped by $cluster.",
           "fieldConfig": {
             "defaults": {
               "decimals": 2,
@@ -4585,7 +4609,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 38
+        "y": 19
       },
       "id": 75,
       "panels": [
@@ -4677,7 +4701,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.95, \nsum(rate(task_latency_queue_bucket{operation=~\"VisibilityTask.*\", service_name=\"history\" }[2m])) by (operation, le))",
+              "expr": "histogram_quantile(0.95, \nsum(rate(task_latency_queue_bucket{cluster=\"$cluster\",operation=~\"VisibilityTask.*\", service_name=\"history\" }[2m])) by (operation, le))",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -4685,7 +4709,8 @@
             }
           ],
           "title": "Visibility task end-to-end latency",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "95th percentile end-to-end latency of visibility tasks (indexing workflow state for List/Search queries)."
         },
         {
           "datasource": {
@@ -4775,7 +4800,7 @@
                 "uid": "TemporalMetrics"
               },
               "editorMode": "code",
-              "expr": "histogram_quantile(0.95,\nsum(rate(task_latency_bucket{operation=~\"VisibilityTask.*\", service_name=\"history\"}[2m])) by (operation, le)\n)",
+              "expr": "histogram_quantile(0.95,\nsum(rate(task_latency_bucket{cluster=\"$cluster\",operation=~\"VisibilityTask.*\", service_name=\"history\"}[2m])) by (operation, le)\n)",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -4783,21 +4808,531 @@
             }
           ],
           "title": "95% Visibility Task Latency (2m)",
-          "type": "timeseries"
+          "type": "timeseries",
+          "description": "95th percentile visibility task latency over 2 minute windows, by operation."
         }
       ],
       "title": "Visibility",
       "type": "row"
+    },
+    {
+      "id": 201,
+      "type": "row",
+      "title": "Multi-Cluster Replication",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 20
+      },
+      "panels": [
+        {
+          "id": 202,
+          "type": "timeseries",
+          "title": "Average Replication Latency",
+          "description": "Average end-to-end replication latency from the active cluster to each standby, by namespace and target node. Sustained growth means the standby is falling behind.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "expr": "rate(replication_latency_sum{cluster=\"$cluster\"}[5m]) / rate(replication_latency_count{cluster=\"$cluster\"}[2m])",
+              "legendFormat": "Namespace: {{exported_namespace}}, Source: {{source_cluster}}, Target: {{node}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 203,
+          "type": "timeseries",
+          "title": "95% Replication Latency, Source -> Target",
+          "description": "95th percentile replication latency per source/target cluster pair.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "expr": "histogram_quantile(0.95, sum by (le, source_cluster, node) (rate(replication_latency_bucket{cluster=\"$cluster\"}[2m])))",
+              "legendFormat": "{{source_cluster}} -> {{node}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 204,
+          "type": "timeseries",
+          "title": "95% Replication Latency, by Namespace/Operation",
+          "description": "95th percentile replication latency broken down by namespace and replication operation type.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "expr": "histogram_quantile(0.95, sum(rate(replication_latency_bucket{cluster=\"$cluster\"}[2m])) by (operation, source_cluster, exported_namespace, node, le))",
+              "legendFormat": "{{source_cluster}} -> {{node}}, Operation: {{operation}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 205,
+          "type": "timeseries",
+          "title": "Replication Task Lag",
+          "description": "Heuristic for how far behind (in task count, not time) a standby cluster is. A widening gap between active and standby means replication can't keep up with the active cluster's write rate.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "expr": "replication_tasks_lag{cluster=\"$cluster\"}",
+              "legendFormat": "{{source_cluster}} -> {{node}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 206,
+          "type": "timeseries",
+          "title": "Replication Receive Backlog",
+          "description": "How much unprocessed replication work is queued on the receiving (standby) side. Distinct from lag: this is about processing capacity on the standby, not distance from the active cluster.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "expr": "replication_tasks_recv_backlog{cluster=\"$cluster\"}",
+              "legendFormat": "{{source_cluster}} -> {{node}}",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 210,
+      "type": "row",
+      "title": "Task Queue Backlog",
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "panels": [
+        {
+          "id": 211,
+          "type": "timeseries",
+          "title": "Approximate Backlog Count",
+          "description": "Approximate number of tasks waiting in each task queue's backlog. The direct signal for 'are workers keeping up' -- Temporal's own guidance calls this out as a top thing to monitor.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "expr": "approximate_backlog_count{cluster=\"$cluster\"}",
+              "legendFormat": "{{task_queue}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 212,
+          "type": "timeseries",
+          "title": "Approximate Backlog Age",
+          "description": "How old the oldest task in each queue's backlog is. A backlog can be numerically small but old, which still means requests are waiting -- this catches that case Backlog Count alone can miss.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "TemporalMetrics"
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "pointSize": 5,
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "calcs": [
+                "mean",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "TemporalMetrics"
+              },
+              "expr": "approximate_backlog_age_seconds{cluster=\"$cluster\"}",
+              "legendFormat": "{{task_queue}}",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
     }
   ],
   "refresh": "5s",
   "schemaVersion": 39,
   "tags": [
     "temporal",
-    "bitovi"
+    "bitovi",
+    "production"
   ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "name": "cluster",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "TemporalMetrics"
+        },
+        "query": "label_values(service_requests, cluster)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "sort": 1
+      },
+      {
+        "name": "namespace",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "TemporalMetrics"
+        },
+        "query": "label_values(service_requests, namespace)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 0,
+        "sort": 1
+      }
+    ]
   },
   "time": {
     "from": "now-15m",
@@ -4817,7 +5352,7 @@
     ]
   },
   "timezone": "browser",
-  "title": "Bitovi's expanded dashboard",
+  "title": "Bitovi Temporal Dashboard",
   "uid": "ff5eogz6opmv4b",
   "version": 1,
   "weekStart": ""

@@ -1,13 +1,10 @@
 dashboards:
   default:
-    bitovi-expanded-dashboard-github:
-      url: https://raw.githubusercontent.com/bitovi/Temporal-Self-Hosting-Workshop-Exercises/main/grafana/bitovi_expanded_dashboard.json
+    bitovi-temporal-dashboard-github:
+      url: https://raw.githubusercontent.com/bitovi/Temporal-Self-Hosting-Workshop-Exercises/main/grafana/bitovi_temporal_dashboard.json
       datasource: TemporalMetrics
     benchmark-workshop-dashboard-github:
       url: https://raw.githubusercontent.com/bitovi/Temporal-Self-Hosting-Workshop-Exercises/main/grafana/benchmark_workshop_dashboard.json
-      datasource: TemporalMetrics
-    replication-dashboard-github:
-      url: https://raw.githubusercontent.com/bitovi/Temporal-Self-Hosting-Workshop-Exercises/main/grafana/replication_dashboard.json
       datasource: TemporalMetrics
     server-general-github:
       url: https://raw.githubusercontent.com/temporalio/dashboards/helm/server/server-general.json
