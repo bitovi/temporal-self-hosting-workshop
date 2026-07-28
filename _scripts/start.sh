@@ -20,8 +20,8 @@ if k3d cluster list | grep -q '^dev\s'; then
   
   # Restart Grafana pod to pick up dashboard changes
   echo "Restarting Grafana pod to refresh dashboards..."
-  kubectl rollout restart deployment cluster-1-temporal-grafana
-  kubectl rollout status deployment cluster-1-temporal-grafana --timeout=2m
+  kubectl rollout restart deployment cluster-1-grafana
+  kubectl rollout status deployment cluster-1-grafana --timeout=2m
   echo "Dashboards restarted successfully!"
 
   # Restart MinIO pod to ensure it picks up any configuration changes
