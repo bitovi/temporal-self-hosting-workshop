@@ -39,6 +39,7 @@ ensure_k3d_cluster() {
       -p "8233:31233@server:0" \
       -p "8181:31080@server:0" \
       -p "9090:30090@server:0" \
+      -p "8090:30890@server:0" \
       --wait --timeout 120s
   fi
 
@@ -194,6 +195,63 @@ ensure_minio_bucket_policy() {
   kubectl apply -f minio/set-bucket-policies.yaml
 }
 
+# worker-control-ui (SYSTEMS-882) is this repo's own code, not a published
+# image, so it's built and loaded into the k3d cluster directly rather than
+# pulled from a registry -- same reasoning as the local Grafana dashboards
+# being loaded via --set-file instead of a URL.
+ensure_worker_control_ui() {
+  echo "Building worker-control-ui images..."
+  docker build -t worker-control-ui:local ./worker-control-ui
+  # Derived from the upstream benchmark-workers image (see
+  # worker-control-ui/runtime/Dockerfile) so the worker/runner Deployments'
+  # containers have a shell -- lets the UI's "Kill" action exec `kill -9 1`
+  # to crash the process in place instead of deleting the Pod.
+  docker build -t worker-control-ui-runtime:local ./worker-control-ui/runtime
+  echo "Importing worker-control-ui images into the k3d cluster..."
+  k3d image import worker-control-ui:local worker-control-ui-runtime:local -c dev
+
+  echo "Applying worker-control-ui manifests..."
+  kubectl apply -f worker-control-ui/manifests.yaml
+
+  # The image tag never changes across rebuilds, so `kubectl apply` alone
+  # won't pick up new image content unless the pod spec itself changed --
+  # force a fresh rollout so a rebuilt image is always picked up, same
+  # reasoning as the forced restart in verify_temporal_health.
+  kubectl rollout restart deployment/worker-control-ui
+  kubectl rollout status deployment/worker-control-ui --timeout=2m
+}
+
+# Ensures Temporal namespace $2 is registered on release $1's cluster. The
+# Helm chart doesn't auto-register any namespace (its `namespaceDefaults`
+# key only configures settings *applied to* namespaces on creation, not
+# create one) -- worker-control-ui and the CLI examples in README.md both
+# assume a "default" namespace exists, so it must be registered explicitly.
+ensure_temporal_namespace() {
+  local release="$1" namespace="$2"
+  if kubectl exec "deploy/${release}-temporal-admintools" -- temporal operator namespace describe -n "$namespace" >/dev/null 2>&1; then
+    return
+  fi
+  echo "Registering Temporal namespace '$namespace' on $release..."
+  kubectl exec "deploy/${release}-temporal-admintools" -- temporal operator namespace create -n "$namespace"
+}
+
+# omes' built-in kitchen-sink scenarios (the Runner UI's "Many Timers" /
+# "Fan-Out" rate-mode options) require these search attributes on the target
+# namespace before their very first workflow start. Confirmed live: without
+# them pre-registered, the first several seconds of a fresh run fail with
+# "no mapping defined for search attribute OmesExecutionID" while the
+# mapping propagates -- it self-heals only because our Runner Deployment
+# runs indefinitely, so pre-registering here avoids that error window.
+ensure_omes_search_attributes() {
+  local release="$1" namespace="$2"
+  if kubectl exec "deploy/${release}-temporal-admintools" -- temporal operator search-attribute list -n "$namespace" 2>/dev/null | grep -q OmesExecutionID; then
+    return
+  fi
+  echo "Registering omes search attributes on $release/$namespace..."
+  kubectl exec "deploy/${release}-temporal-admintools" -- temporal operator search-attribute create -n "$namespace" --name OmesExecutionID --name KS_Keyword --type Keyword
+  kubectl exec "deploy/${release}-temporal-admintools" -- temporal operator search-attribute create -n "$namespace" --name KS_Int --type Int
+}
+
 #######################################
 # verify_* functions: check real state (not just Deployment readiness),
 # attempt one remediation on failure, then fail loudly if still broken.
@@ -286,6 +344,22 @@ prometheus_target_status() {
   # grep -c exits 1 on a zero count -- `|| true` keeps that from tripping
   # `set -e` when there are (correctly) no down targets to report.
   grep -c '"health":"down"' <<<"$response" || true
+}
+
+verify_worker_control_ui() {
+  echo "Verifying worker-control-ui is reachable..."
+  if curl -sf http://localhost:8090/healthz >/dev/null 2>&1; then
+    echo "worker-control-ui is healthy!"
+    return
+  fi
+
+  echo "worker-control-ui not reachable -- retrying..."
+  ensure_worker_control_ui
+  if ! curl -sf http://localhost:8090/healthz >/dev/null 2>&1; then
+    echo "ERROR: worker-control-ui is still not reachable after retry." >&2
+    exit 1
+  fi
+  echo "worker-control-ui healthy on retry!"
 }
 
 verify_prometheus_targets() {
@@ -400,6 +474,7 @@ ensure_grafana
 ensure_temporal_release cluster-1 helm/cluster-1-temporal-values.yaml
 ensure_temporal_release cluster-2 helm/cluster-2-temporal-values.yaml temporal_persistence_2 temporal_visibility_2
 ensure_minio_bucket_policy
+ensure_worker_control_ui
 
 echo ""
 echo "Running post-start validation..."
@@ -410,10 +485,17 @@ echo "Running post-start validation..."
 # itself (which was never the actual problem).
 verify_postgres
 verify_temporal_health cluster-1
+ensure_temporal_namespace cluster-1 default
+ensure_temporal_namespace cluster-1 workshop
+ensure_omes_search_attributes cluster-1 workshop
 verify_temporal_health cluster-2
+ensure_temporal_namespace cluster-2 default
+ensure_temporal_namespace cluster-2 workshop
+ensure_omes_search_attributes cluster-2 workshop
 verify_minio_bucket_policy
 verify_grafana_dashboards
 verify_prometheus_targets
+verify_worker_control_ui
 
 echo ""
 echo "All services up and validated successfully!"

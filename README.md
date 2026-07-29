@@ -23,6 +23,7 @@ Services are accessible via the **Ports** tab in the Codespace editor (or the fo
 | Temporal WebUI (standby cluster) | `8181` | WebUI for Standby |
 | Grafana | `3000` | Grafana |
 | MinIO S3 WebUI | `9090` | S3 WebUI for MinIO |
+| Worker Control UI | `8090` | Worker Control UI |
 | Temporal gRPC frontend | `7233` | *(used by CLI)* |
 
 > In the Ports tab, right-click a port and select **Open in Browser** to access the UI.

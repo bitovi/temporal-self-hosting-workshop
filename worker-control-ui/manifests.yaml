@@ -1,0 +1,88 @@
+# Deploys the worker-control-ui control panel (SYSTEMS-882) as a Pod+Service
+# inside the k3d cluster, the same way temporal-web/Grafana/MinIO are -- see
+# _scripts/start.sh's ensure_worker_control_ui, which builds the image from
+# this directory and `k3d image import`s it (it's local repo code, not
+# published to a registry) before applying this file.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: worker-control-ui
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: worker-control-ui
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: worker-control-ui
+subjects:
+  - kind: ServiceAccount
+    name: worker-control-ui
+roleRef:
+  kind: Role
+  name: worker-control-ui
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-control-ui
+  labels:
+    app: worker-control-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker-control-ui
+  template:
+    metadata:
+      labels:
+        app: worker-control-ui
+    spec:
+      serviceAccountName: worker-control-ui
+      containers:
+        - name: worker-control-ui
+          image: worker-control-ui:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8090
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker-control-ui
+spec:
+  type: NodePort
+  selector:
+    app: worker-control-ui
+  ports:
+    - port: 8090
+      targetPort: 8090
+      nodePort: 30890
+      name: http

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Temporal Worker Control</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Temporal Worker Control</h1>
+    <div class="cluster-switch" role="group" aria-label="Cluster selection">
+      <button type="button" class="cluster-btn active" data-cluster="cluster-1">cluster-1</button>
+      <button type="button" class="cluster-btn" data-cluster="cluster-2">cluster-2</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" id="worker-panel">
+      <div class="panel-header">
+        <h2>Worker</h2>
+        <label class="switch">
+          <input type="checkbox" id="worker-toggle" />
+          <span class="slider"></span>
+        </label>
+        <span class="pill" id="worker-pill">stopped</span>
+        <button type="button" class="kill-btn" id="worker-kill" title="Terminate the worker process in place (for exercises) without losing its logs">Kill</button>
+      </div>
+      <p class="hint">Runs the benchmark-workers worker binary against the selected cluster, polling task queue <code>hello-world</code>.</p>
+      <pre class="log-pane" id="worker-log"></pre>
+    </section>
+
+    <section class="panel" id="runner-panel">
+      <div class="panel-header">
+        <h2>Runner</h2>
+        <label class="switch">
+          <input type="checkbox" id="runner-toggle" />
+          <span class="slider"></span>
+        </label>
+        <span class="pill" id="runner-pill">stopped</span>
+        <button type="button" class="kill-btn" id="runner-kill" title="Terminate the runner process in place (for exercises) without losing its logs">Kill</button>
+      </div>
+      <p class="hint">For single one-off runs, use the <code>temporal</code> CLI from a terminal instead.</p>
+
+      <div class="runner-config">
+        <div class="mode-switch" role="group" aria-label="Runner dispatch mode">
+          <label><input type="radio" name="runner-mode" id="runner-mode-steady" value="steady" checked /> Steady load</label>
+          <label><input type="radio" name="runner-mode" id="runner-mode-rate" value="rate" /> Rate limited</label>
+        </div>
+
+        <div class="runner-config-group" id="runner-config-steady">
+          <label>Queue depth
+            <input type="number" id="runner-depth" value="10" min="1" step="1" />
+          </label>
+          <label>Example
+            <select id="runner-example">
+              <option value="1">1: Hello world</option>
+              <option value="2" selected>2: Hello world via an activity</option>
+              <option value="3">3: Hello world via an activity, then sleep 5s</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="runner-config-group" id="runner-config-rate" hidden>
+          <label>Requests/sec
+            <input type="number" id="runner-rate" value="5" min="0.1" step="0.1" />
+          </label>
+          <label>Scenario
+            <select id="runner-scenario">
+              <option value="hello_world">Hello World</option>
+              <option value="many_timers">Many Timers</option>
+              <option value="fan_out">Fan-Out</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="runner-config-group" id="rate-scenario-hello-world">
+          <label>Example
+            <select id="runner-rate-example">
+              <option value="1">1: Hello world</option>
+              <option value="2" selected>2: Hello world via an activity</option>
+              <option value="3">3: Hello world via an activity, then sleep 5s</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="runner-config-group" id="rate-scenario-many-timers" hidden>
+          <label>Concurrent timers
+            <input type="number" id="runner-concurrent-timers" value="30" min="1" step="1" />
+          </label>
+          <label>Timer duration (s)
+            <input type="number" id="runner-timer-duration" value="10" min="1" step="1" />
+          </label>
+          <p class="hint rate-scenario-note">Runs its own embedded worker -- independent of the Worker toggle above.</p>
+        </div>
+
+        <div class="runner-config-group" id="rate-scenario-fan-out" hidden>
+          <label>Children per workflow
+            <input type="number" id="runner-children" value="30" min="0" step="1" />
+          </label>
+          <label>Activities per workflow
+            <input type="number" id="runner-activities" value="30" min="0" step="1" />
+          </label>
+          <p class="hint rate-scenario-note">Runs its own embedded worker -- independent of the Worker toggle above.</p>
+        </div>
+      </div>
+
+      <pre class="log-pane" id="runner-log"></pre>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
