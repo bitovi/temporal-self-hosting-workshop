@@ -248,7 +248,25 @@ ensure_omes_search_attributes() {
     return
   fi
   echo "Registering omes search attributes on $release/$namespace..."
-  kubectl exec "deploy/${release}-temporal-admintools" -- temporal operator search-attribute create -n "$namespace" --name OmesExecutionID --name KS_Keyword --type Keyword
+
+  # A namespace just created by ensure_temporal_namespace may not be visible
+  # to the search-attribute service yet -- the namespace registry cache only
+  # refreshes periodically (default ~10s), so a create call issued right
+  # after namespace creation can fail with "Namespace ... is not found" even
+  # though the namespace already exists. Retry with a short backoff.
+  local attempt
+  for attempt in $(seq 1 10); do
+    if kubectl exec "deploy/${release}-temporal-admintools" -- temporal operator search-attribute create -n "$namespace" --name OmesExecutionID --name KS_Keyword --type Keyword; then
+      break
+    fi
+    if ((attempt == 10)); then
+      echo "ERROR: failed to register omes search attributes on $release/$namespace after retries." >&2
+      exit 1
+    fi
+    echo "Namespace '$namespace' not yet visible for search attributes -- retrying ($attempt/10)..."
+    sleep 2
+  done
+
   kubectl exec "deploy/${release}-temporal-admintools" -- temporal operator search-attribute create -n "$namespace" --name KS_Int --type Int
 }
 
@@ -309,6 +327,12 @@ verify_grafana_dashboards() {
 
   echo "Only $found/$EXPECTED_GRAFANA_DASHBOARD_COUNT Grafana dashboards provisioned -- retrying..."
   ensure_grafana
+  # helm upgrade alone won't restart the pod if the rendered spec is unchanged,
+  # so the download-dashboards init container (which only runs at pod startup)
+  # never re-fetches the missing dashboards -- force the restart, same as
+  # ensure_worker_control_ui does for the same class of bug.
+  kubectl rollout restart deployment/cluster-1-temporal-grafana
+  kubectl rollout status deployment/cluster-1-temporal-grafana --timeout=2m
   found=$(curl -s -u admin:temporal 'http://localhost:3000/api/search?type=dash-db' | grep -o '"uid"' | wc -l | tr -d ' ' || true)
 
   if ((found < EXPECTED_GRAFANA_DASHBOARD_COUNT)); then
