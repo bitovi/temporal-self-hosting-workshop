@@ -490,8 +490,6 @@ ensure_temporal_namespace cluster-1 workshop
 ensure_omes_search_attributes cluster-1 workshop
 verify_temporal_health cluster-2
 ensure_temporal_namespace cluster-2 default
-ensure_temporal_namespace cluster-2 workshop
-ensure_omes_search_attributes cluster-2 workshop
 verify_minio_bucket_policy
 verify_grafana_dashboards
 verify_prometheus_targets

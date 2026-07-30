@@ -1,0 +1,4 @@
+server:
+  config:
+    persistence:
+      numHistoryShards: __CHANGE VALUE__

@@ -74,8 +74,17 @@ func ValidCluster(c string) bool {
 	return c == string(Cluster1) || c == string(Cluster2)
 }
 
+// frontendPort maps each cluster to its frontend Service's exposed port.
+// cluster-1's Service listens on 7233; cluster-2's listens on 8233 (both
+// forward to the pod's container port 7233) -- see helm/cluster-*-temporal-values.yaml's
+// frontend.service.port.
+var frontendPort = map[Cluster]string{
+	Cluster1: "7233",
+	Cluster2: "8233",
+}
+
 func (c Cluster) frontendAddr() string {
-	return fmt.Sprintf("%s-temporal-frontend:7233", c)
+	return fmt.Sprintf("%s-temporal-frontend:%s", c, frontendPort[c])
 }
 
 // RunState is the lifecycle state reported for the worker or runner.
