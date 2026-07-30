@@ -42,13 +42,13 @@
   ],
   "portsAttributes": {
     "8080": {
-      "label": "WebUI"
+      "label": "WebUI for cluster-1"
     },
     "3000": {
       "label": "Grafana"
     },
     "8181": {
-      "label": "WebUI for Standby"
+      "label": "WebUI for cluster-2"
     },
     "9090": {
       "label": "S3 WebUI for MinIO"
