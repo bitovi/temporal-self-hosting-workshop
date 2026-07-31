@@ -410,14 +410,20 @@ verify_worker_control_ui() {
 
 verify_codec_demo() {
   echo "Verifying codec-demo is reachable..."
-  if curl -sf http://localhost:8091/healthz >/dev/null 2>&1; then
+
+  # /healthz alone only proves codec-server is up -- also check codec-worker's
+  # rollout, since it's a separate Deployment that /healthz can't see and the
+  # demo workflows silently never make progress if it's down.
+  if curl -sf http://localhost:8091/healthz >/dev/null 2>&1 &&
+     kubectl rollout status deployment/codec-worker --timeout=2m; then
     echo "codec-demo is healthy!"
     return
   fi
 
   echo "codec-demo not reachable -- retrying..."
   ensure_codec_demo
-  if ! curl -sf http://localhost:8091/healthz >/dev/null 2>&1; then
+  if ! curl -sf http://localhost:8091/healthz >/dev/null 2>&1 ||
+     ! kubectl rollout status deployment/codec-worker --timeout=2m; then
     echo "ERROR: codec-demo is still not reachable after retry." >&2
     exit 1
   fi

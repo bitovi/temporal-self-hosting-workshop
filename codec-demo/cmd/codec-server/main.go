@@ -73,7 +73,9 @@ func payloadsHandler(transform func([]*commonpb.Payload) ([]*commonpb.Payload, e
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(out)
+		if _, err := w.Write(out); err != nil {
+			log.Printf("writing response: %v", err)
+		}
 	}
 }
 

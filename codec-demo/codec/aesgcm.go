@@ -15,6 +15,7 @@ import (
 	"os"
 
 	commonpb "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/converter"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -32,6 +33,11 @@ const metadataEncodingKey = "encoding"
 type AESCodec struct {
 	gcm cipher.AEAD
 }
+
+// Compile-time assertion that AESCodec satisfies converter.PayloadCodec, so
+// a future signature drift fails here (the package that owns the contract)
+// instead of only surfacing as a build error in the consuming worker binary.
+var _ converter.PayloadCodec = (*AESCodec)(nil)
 
 // NewAESCodecFromEnv builds an AESCodec from the CODEC_AES_KEY environment
 // variable, a base64-encoded 32-byte AES-256 key.

@@ -69,7 +69,7 @@ temporal --address localhost:8233 operator namespace list
 
 ## Codec Server
 
-This workshop includes a Temporal [codec server](https://docs.temporal.io/production-deployment/data-encryption) that encrypts workflow and activity payloads with AES-256-GCM. Two demo workflows run continuously on the `codec-demo` task queue in the `default` namespace, so their history is genuinely unreadable in the raw Web UI/CLI output until you point a client at the codec server.
+This workshop includes a Temporal [codec server](https://docs.temporal.io/production-deployment/data-encryption) that encrypts workflow and activity payloads with AES-256-GCM. A worker polls the `codec-demo` task queue in the `default` namespace; start either workflow below to generate encrypted history.
 
 **Start the onboarding demo (encrypted workflow input/result):**
 
@@ -78,7 +78,8 @@ temporal workflow start \
   --namespace default \
   --task-queue codec-demo \
   --type CustomerOnboardingWorkflow \
-  --input '{"name":"Jane Doe","ssn":"123-45-6789","email":"jane@example.com"}'
+  --input '{"name":"Jane Doe","ssn":"123-45-6789","email":"jane@example.com"}' \
+  --codec-endpoint http://localhost:8091
 ```
 
 **Start the payment demo (encrypted activity input/result):**
@@ -88,8 +89,11 @@ temporal workflow start \
   --namespace default \
   --task-queue codec-demo \
   --type ProcessPaymentWorkflow \
-  --input '{"customerId":"cust-6789","cardDetails":{"cardNumber":"4111111111111111","cvv":"123","expMonth":12,"expYear":2030},"amount":49.99}'
+  --input '{"customerId":"cust-6789","cardDetails":{"cardNumber":"4111111111111111","cvv":"123","expMonth":12,"expYear":2030},"amount":49.99}' \
+  --codec-endpoint http://localhost:8091
 ```
+
+`--codec-endpoint` here makes the CLI encrypt the *input* through the codec server before submitting it, so the workflow's input payload is stored as ciphertext too (not just its result). If you omit it, the input is sent through the plain JSON converter and stored as readable JSON -- the codec's passthrough logic on the read side accepts either, decrypting payloads it recognizes and passing through ones it doesn't, which is what makes that omission silent instead of an error.
 
 **See the raw ciphertext (no codec configured):**
 
