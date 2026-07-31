@@ -68,3 +68,25 @@ func TestDecodePassthroughForUnencryptedPayload(t *testing.T) {
 		t.Fatalf("expected passthrough of unencrypted payload")
 	}
 }
+
+func TestNewAESCodecRejectsWrongKeyLength(t *testing.T) {
+	tests := []struct {
+		name      string
+		keyLength int
+	}{
+		{"16-byte key (AES-128)", 16},
+		{"24-byte key (AES-192)", 24},
+		{"31-byte key", 31},
+		{"33-byte key", 33},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			key := make([]byte, tt.keyLength)
+			_, err := NewAESCodec(key)
+			if err == nil {
+				t.Fatalf("expected error for %d-byte key, got nil", tt.keyLength)
+			}
+		})
+	}
+}

@@ -1,6 +1,6 @@
 module github.com/bitovi/temporal-self-hosting-workshop/codec-demo
 
-go 1.26.5
+go 1.25.4
 
 require (
 	go.temporal.io/api v1.63.4
