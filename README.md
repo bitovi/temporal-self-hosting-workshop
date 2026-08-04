@@ -71,6 +71,14 @@ temporal --address localhost:8233 operator namespace list
 
 This workshop includes a Temporal [codec server](https://docs.temporal.io/production-deployment/data-encryption) that encrypts workflow and activity payloads with AES-256-GCM. A worker polls the `codec-demo` task queue in the `default` namespace; start either workflow below to generate encrypted history.
 
+Codec-server/codec-worker aren't deployed automatically — when you're ready to explore this, run:
+
+```bash
+_scripts/start-codec-demo.sh
+```
+
+Once that completes, start either workflow below to generate encrypted history.
+
 **Start the onboarding demo (encrypted workflow input/result):**
 
 ```bash
