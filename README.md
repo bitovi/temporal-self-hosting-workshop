@@ -24,7 +24,7 @@ Services are accessible via the **Ports** tab in the Codespace editor (or the fo
 | Grafana | `3000` | Grafana |
 | MinIO S3 WebUI | `9090` | S3 WebUI for MinIO |
 | Worker Control UI | `8090` | Worker Control UI |
-| Codec Server | `8091` | Codec Server |
+| Codec Server | `8091` | Codec Server *(not deployed until `_scripts/start-codec-demo.sh` runs — see below)* |
 | Temporal gRPC frontend | `7233` | *(used by CLI)* |
 
 > In the Ports tab, right-click a port and select **Open in Browser** to access the UI.
@@ -69,7 +69,9 @@ temporal --address localhost:8233 operator namespace list
 
 ## Codec Server
 
-This workshop includes a Temporal [codec server](https://docs.temporal.io/production-deployment/data-encryption) that encrypts workflow and activity payloads with AES-256-GCM. A worker polls the `codec-demo` task queue in the `default` namespace; start either workflow below to generate encrypted history.
+This workshop includes a Temporal [codec server](https://docs.temporal.io/production-deployment/data-encryption) that encrypts workflow and activity payloads with AES-256-GCM. A worker polls the `codec-demo` task queue in the `default` namespace.
+
+Port `8091` is forwarded as a **public** Codespaces port (see `.devcontainer/devcontainer.json`) so the Web UI's browser-side codec calls can reach it without a GitHub-auth redirect breaking the request — the codec server itself has no authentication (see `codec-demo/cmd/codec-server/main.go`'s CORS comment), so treat it as unauthenticated: don't route real sensitive data through this demo.
 
 Codec-server/codec-worker aren't deployed automatically — when you're ready to explore this, run:
 
@@ -122,5 +124,5 @@ temporal workflow show --workflow-id <workflow-id> --namespace default \
 
 1. Open the Web UI (port `8080`) and navigate to the workflow's history — the input/result will show as ciphertext.
 2. Open the namespace's **Codec Server** setting (in the Web UI's settings for the `default` namespace).
-3. Set the endpoint to `http://localhost:8091` and save.
+3. Set the endpoint: `http://localhost:8091` if you're using desktop VS Code; if you're in a browser-based Codespace, use the forwarded URL for port 8091 instead (Ports tab → right-click port `8091` → **Copy Local Address**). Save.
 4. Reload the workflow's history — the payloads now decode live to readable JSON.
