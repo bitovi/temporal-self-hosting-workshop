@@ -58,7 +58,8 @@
       "label": "Worker Control UI"
     },
     "8091": {
-      "label": "Codec Server"
+      "label": "Codec Server",
+      "visibility": "public"
     }
   },
   "remoteEnv": {
