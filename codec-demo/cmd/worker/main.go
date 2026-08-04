@@ -33,7 +33,7 @@ func main() {
 			// Matches worker-control-ui's frontend addressing convention: the
 			// cluster-1 Helm release's frontend Service, same namespace.
 			HostPort:  "cluster-1-temporal-frontend:7233",
-			Namespace: "workshop",
+			Namespace: "default",
 			DataConverter: converter.NewCodecDataConverter(
 				converter.GetDefaultDataConverter(),
 				aesCodec,
