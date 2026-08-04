@@ -78,9 +78,9 @@ func TestHealthzReturns200(t *testing.T) {
 	srv := httptest.NewServer(newMux(c))
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL + "/healthz")
+	resp, err := http.Get(srv.URL + "/health")
 	if err != nil {
-		t.Fatalf("GET /healthz: %v", err)
+		t.Fatalf("GET /health: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
