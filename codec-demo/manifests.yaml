@@ -44,12 +44,12 @@ spec:
                 name: codec-demo-key
           readinessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: http
             initialDelaySeconds: 2
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: http
             initialDelaySeconds: 5
 ---
