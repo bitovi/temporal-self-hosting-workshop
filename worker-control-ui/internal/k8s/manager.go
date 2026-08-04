@@ -329,15 +329,14 @@ func (m *Manager) signalContainer(ctx context.Context, podName, containerName st
 	return nil
 }
 
-func workerDeployment(cluster Cluster) *appsv1.Deployment {
-	one := int32(1)
+func workerDeployment(cluster Cluster, replicas int32) *appsv1.Deployment {
 	name := deploymentName(workerKind, cluster)
 	labels := labelsFor(workerKind, cluster)
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: &one,
+			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{MatchLabels: labels},
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{Labels: labels},
@@ -509,8 +508,11 @@ func runnerDeployment(cluster Cluster, cfg RunnerConfig) (*appsv1.Deployment, er
 	}, nil
 }
 
-func (m *Manager) StartWorker(ctx context.Context, cluster Cluster) error {
-	return m.start(ctx, deploymentName(workerKind, cluster), workerDeployment(cluster))
+func (m *Manager) StartWorker(ctx context.Context, cluster Cluster, replicas int32) error {
+	if replicas < 1 {
+		return fmt.Errorf("instances must be at least 1, got %d", replicas)
+	}
+	return m.start(ctx, deploymentName(workerKind, cluster), workerDeployment(cluster, replicas))
 }
 
 func (m *Manager) StopWorker(ctx context.Context, cluster Cluster) error {

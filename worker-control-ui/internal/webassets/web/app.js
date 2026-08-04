@@ -8,6 +8,7 @@ const clusterBtns = document.querySelectorAll(".cluster-btn");
 const panels = {
   worker: {
     toggle: document.getElementById("worker-toggle"),
+    instances: document.getElementById("worker-instances"),
     pill: document.getElementById("worker-pill"),
     log: document.getElementById("worker-log"),
     kill: document.getElementById("worker-kill"),
@@ -83,6 +84,10 @@ function closeLogStream(kind) {
     state.logSources[kind].close();
     state.logSources[kind] = null;
   }
+}
+
+function workerConfig() {
+  return { replicas: parseInt(panels.worker.instances.value, 10) || 1 };
 }
 
 function runnerConfig() {
@@ -164,12 +169,14 @@ clusterBtns.forEach((btn) =>
   })
 );
 
+const startConfig = { worker: workerConfig, runner: runnerConfig };
+
 Object.entries(panels).forEach(([kind, panel]) => {
   panel.toggle.addEventListener("change", async () => {
     panel.toggleBusy = true;
     try {
       if (panel.toggle.checked) {
-        await postJSON(`/api/${kind}/${state.cluster}/start`, kind === "runner" ? runnerConfig() : undefined);
+        await postJSON(`/api/${kind}/${state.cluster}/start`, startConfig[kind]());
       } else {
         await postJSON(`/api/${kind}/${state.cluster}/stop`);
         closeLogStream(kind);
@@ -201,6 +208,9 @@ async function refreshPanel(kind, panel) {
     const running = res.state === "running" || res.state === "starting";
     if (!panel.toggleBusy) panel.toggle.checked = running;
     panel.kill.disabled = !running;
+    if (kind === "worker") {
+      panel.instances.disabled = running;
+    }
     if (kind === "runner") {
       runnerRunning = running;
       updateRunnerControls();

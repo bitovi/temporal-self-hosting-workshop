@@ -56,9 +56,7 @@ func (h *Handlers) Routes() *http.ServeMux {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	mux.HandleFunc("POST /api/worker/{cluster}/start", start(func(ctx context.Context, c k8s.Cluster) error {
-		return h.manager.StartWorker(ctx, c)
-	}))
+	mux.HandleFunc("POST /api/worker/{cluster}/start", h.startWorker)
 	mux.HandleFunc("POST /api/runner/{cluster}/start", h.startRunner)
 
 	for _, kind := range []struct {
@@ -94,18 +92,34 @@ func writeState(w http.ResponseWriter, state k8s.RunState) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"state": string(state)})
 }
 
-func start(startFn func(context.Context, k8s.Cluster) error) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		c, ok := cluster(w, r)
-		if !ok {
-			return
-		}
-		if err := startFn(r.Context(), c); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		writeState(w, k8s.StateStarting)
+// startWorker decodes the Worker's instance count from the request body and
+// starts it. A missing or zero replicas field defaults to 1, keeping a
+// bodyless request (the shape used before Worker had a configurable instance
+// count) equivalent to today's single-replica behavior.
+func (h *Handlers) startWorker(w http.ResponseWriter, r *http.Request) {
+	c, ok := cluster(w, r)
+	if !ok {
+		return
 	}
+
+	var body struct {
+		Replicas int32 `json:"replicas"`
+	}
+	if r.ContentLength != 0 {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, fmt.Sprintf("decoding worker config: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+	if body.Replicas == 0 {
+		body.Replicas = 1
+	}
+
+	if err := h.manager.StartWorker(r.Context(), c, body.Replicas); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeState(w, k8s.StateStarting)
 }
 
 // startRunner decodes the Runner's mode/depth/example/rate config from the
