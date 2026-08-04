@@ -1,8 +1,7 @@
 # Deploys the codec-demo codec server + worker into the k3d cluster, the
-# same way worker-control-ui is -- see _scripts/start.sh's
-# ensure_codec_demo, which builds the image from this directory and
-# `k3d image import`s it (it's local repo code, not published to a
-# registry) before applying this file.
+# same way worker-control-ui is -- see _scripts/start-codec-demo.sh, which
+# builds the image from this directory and `k3d image import`s it (it's
+# local repo code, not published to a registry) before applying this file.
 apiVersion: v1
 kind: Secret
 metadata:

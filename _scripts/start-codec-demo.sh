@@ -1,6 +1,8 @@
 #! /bin/bash
 set -euo pipefail
 
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
 # Deploys the codec-demo codec server + worker into the already-running
 # `dev` k3d cluster. Split out from start.sh because codec-demo is used
 # later in the workshop than the rest of the stack, so it shouldn't have
@@ -27,14 +29,24 @@ ensure_codec_demo() {
   kubectl rollout status deployment/codec-worker --timeout=2m
 }
 
+# kubectl rollout status alone can't tell us the worker actually connected --
+# codec-worker has no readinessProbe and worker/main.go retries client.Dial
+# forever instead of exiting, so the pod reports Ready the instant it starts
+# regardless of whether it ever reached the Temporal frontend. Grep for the
+# log line main.go only prints after a successful Dial + worker start.
+codec_worker_connected() {
+  kubectl rollout status deployment/codec-worker --timeout=2m &&
+  kubectl logs deployment/codec-worker --tail=20 2>/dev/null | grep -q "starting worker on task queue"
+}
+
 verify_codec_demo() {
   echo "Verifying codec-demo is reachable..."
 
-  # /health alone only proves codec-server is up -- also check codec-worker's
-  # rollout, since it's a separate Deployment that /health can't see and the
-  # demo workflows silently never make progress if it's down.
+  # /health alone only proves codec-server is up -- also check codec-worker
+  # actually connected, since it's a separate Deployment that /health can't
+  # see and the demo workflows silently never make progress if it's down.
   if curl -sf http://localhost:8091/health >/dev/null 2>&1 &&
-     kubectl rollout status deployment/codec-worker --timeout=2m; then
+     codec_worker_connected; then
     echo "codec-demo is healthy!"
     return
   fi
@@ -42,7 +54,7 @@ verify_codec_demo() {
   echo "codec-demo not reachable -- retrying..."
   ensure_codec_demo
   if ! curl -sf http://localhost:8091/health >/dev/null 2>&1 ||
-     ! kubectl rollout status deployment/codec-worker --timeout=2m; then
+     ! codec_worker_connected; then
     echo "ERROR: codec-demo is still not reachable after retry." >&2
     exit 1
   fi

@@ -22,11 +22,11 @@ func main() {
 		log.Fatalf("initializing codec: %v", err)
 	}
 
-	// start.sh starts codec-demo before some Temporal health/namespace steps
-	// complete, so the frontend may not be dialable yet -- retry instead of
-	// fataling on the first failure so this pod doesn't crash-loop and abort
-	// the whole script via `kubectl rollout status` (see start.sh's
-	// ensure_postgres/verify_postgres comments for the same class of issue).
+	// Retries instead of fataling on the first failure so this pod doesn't
+	// crash-loop if the Temporal frontend isn't dialable yet -- e.g. if
+	// start-codec-demo.sh is run while the cluster is still settling, or the
+	// frontend restarts. See _scripts/start.sh's ensure_postgres/verify_postgres
+	// comments for the same class of issue.
 	var c client.Client
 	for {
 		c, err = client.Dial(client.Options{

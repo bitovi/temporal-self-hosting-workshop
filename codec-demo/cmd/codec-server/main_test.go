@@ -68,7 +68,7 @@ func TestDecodeHandlerRoundtrip(t *testing.T) {
 	}
 }
 
-func TestHealthzReturns200(t *testing.T) {
+func TestHealthReturns200(t *testing.T) {
 	key := make([]byte, 32)
 	c, err := codec.NewAESCodec(key)
 	if err != nil {
