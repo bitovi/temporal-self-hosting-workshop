@@ -70,7 +70,7 @@ server:
         cluster-2:
           enabled: true
           initialFailoverVersion: 2
-          rpcAddress: "cluster-2-temporal-frontend:7233"
+          rpcAddress: "cluster-2-temporal-frontend:8233"
   namespaceDefaults:
     archival:
       history:
