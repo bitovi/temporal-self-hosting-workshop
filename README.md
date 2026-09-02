@@ -24,7 +24,7 @@ Services are accessible via the **Ports** tab in the Codespace editor (or the fo
 | Grafana | `3000` | Grafana |
 | MinIO S3 WebUI | `9090` | S3 WebUI for MinIO |
 | Worker Control UI | `8090` | Worker Control UI |
-| Codec Server | `8091` | Codec Server *(not deployed until `_scripts/start-codec-demo.sh` runs — see below)* |
+| Codec Server | `8091` | Codec Server |
 | Temporal gRPC frontend | `7233` | *(used by CLI)* |
 
 > In the Ports tab, right-click a port and select **Open in Browser** to access the UI.
@@ -73,13 +73,7 @@ This workshop includes a Temporal [codec server](https://docs.temporal.io/produc
 
 Port `8091` is forwarded as a **public** Codespaces port (see `.devcontainer/devcontainer.json`) so the Web UI's browser-side codec calls can reach it without a GitHub-auth redirect breaking the request — the codec server itself has no authentication (see `codec-demo/cmd/codec-server/main.go`'s CORS comment), so treat it as unauthenticated: don't route real sensitive data through this demo.
 
-Codec-server/codec-worker aren't deployed automatically — when you're ready to explore this, run:
-
-```bash
-_scripts/start-codec-demo.sh
-```
-
-Once that completes, start either workflow below to generate encrypted history.
+Codec-server and codec-worker are deployed automatically by `_scripts/start.sh`, same as the rest of the stack. Start either workflow below to generate encrypted history.
 
 **Start the onboarding demo (encrypted workflow input/result):**
 
