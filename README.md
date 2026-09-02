@@ -73,7 +73,7 @@ This workshop includes a Temporal [codec server](https://docs.temporal.io/produc
 
 Port `8091` is forwarded as a **public** Codespaces port (see `.devcontainer/devcontainer.json`) so the Web UI's browser-side codec calls can reach it without a GitHub-auth redirect breaking the request — the codec server itself has no authentication (see `codec-demo/cmd/codec-server/main.go`'s CORS comment), so treat it as unauthenticated: don't route real sensitive data through this demo.
 
-Codec-server and codec-worker are deployed automatically by `_scripts/start.sh`, same as the rest of the stack. Start either workflow below to generate encrypted history.
+Codec-server is deployed automatically by `_scripts/start.sh`, same as the rest of the stack. codec-worker is deployed too, but starts at 0 replicas -- turn it on in the Worker Control UI (port `8090`, **Codec Demo Worker** toggle) before starting either workflow below.
 
 **Start the onboarding demo (encrypted workflow input/result):**
 

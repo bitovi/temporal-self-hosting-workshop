@@ -73,7 +73,11 @@ metadata:
   labels:
     app: codec-worker
 spec:
-  replicas: 1
+  # Off by default -- participants turn this on themselves in Exercise 8 via
+  # the Worker Control UI's Codec Demo Worker toggle. codec-server (above)
+  # stays at 1: it's a standalone HTTP decode endpoint with no Temporal
+  # dependency, so there's no reason to gate it behind the same toggle.
+  replicas: 0
   selector:
     matchLabels:
       app: codec-worker

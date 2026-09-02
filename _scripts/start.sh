@@ -225,10 +225,10 @@ ensure_worker_control_ui() {
 # codec-demo is this repo's own code, not a published image, so it's built
 # and loaded into the k3d cluster directly rather than pulled from a
 # registry -- same reasoning as ensure_worker_control_ui's build step. Runs
-# on every start like the rest of the stack (Exercise 8's own instructions
-# assume the pods are already up); starting the demo workflows themselves
-# stays a manual, exercise-time step -- this only brings the codec-server
-# and codec-worker Deployments up, it never dispatches any workflow.
+# on every start like the rest of the stack, but only codec-server comes up
+# running -- codec-worker's manifest pins it at 0 replicas by design
+# (see codec-demo/manifests.yaml), since Exercise 8 has participants turn it
+# on themselves via the Worker Control UI's Codec Demo Worker toggle.
 ensure_codec_demo() {
   echo "Building codec-demo image..."
   docker build -t codec-demo:local ./codec-demo
@@ -241,10 +241,11 @@ ensure_codec_demo() {
   # The image tag never changes across rebuilds, so `kubectl apply` alone
   # won't pick up new image content unless the pod spec itself changed --
   # force a fresh rollout so a rebuilt image is always picked up, same
-  # reasoning as the forced restart in ensure_worker_control_ui.
-  kubectl rollout restart deployment/codec-server deployment/codec-worker
+  # reasoning as the forced restart in ensure_worker_control_ui. Only
+  # codec-server needs this: codec-worker sits at 0 replicas until a
+  # participant turns it on, so there's nothing running yet to restart.
+  kubectl rollout restart deployment/codec-server
   kubectl rollout status deployment/codec-server --timeout=2m
-  kubectl rollout status deployment/codec-worker --timeout=2m
 }
 
 # Ensures Temporal namespace $2 is registered on release $1's cluster. The
@@ -412,32 +413,21 @@ verify_worker_control_ui() {
   echo "worker-control-ui healthy on retry!"
 }
 
-# kubectl rollout status alone can't tell us the worker actually connected --
-# codec-worker has no readinessProbe and worker/main.go retries client.Dial
-# forever instead of exiting, so the pod reports Ready the instant it starts
-# regardless of whether it ever reached the Temporal frontend. Grep for the
-# log line main.go only prints after a successful Dial + worker start.
-codec_worker_connected() {
-  kubectl rollout status deployment/codec-worker --timeout=2m &&
-  kubectl logs deployment/codec-worker --tail=20 2>/dev/null | grep -q "starting worker on task queue"
-}
-
+# codec-worker sits at 0 replicas until a participant turns it on in
+# Exercise 8 (see codec-demo/manifests.yaml), so there's nothing to verify
+# for it here -- only codec-server, which is always up, needs a startup
+# health check.
 verify_codec_demo() {
   echo "Verifying codec-demo is reachable..."
 
-  # /health alone only proves codec-server is up -- also check codec-worker
-  # actually connected, since it's a separate Deployment that /health can't
-  # see and the demo workflows silently never make progress if it's down.
-  if curl -sf http://localhost:8091/health >/dev/null 2>&1 &&
-     codec_worker_connected; then
+  if curl -sf http://localhost:8091/health >/dev/null 2>&1; then
     echo "codec-demo is healthy!"
     return
   fi
 
   echo "codec-demo not reachable -- retrying..."
   ensure_codec_demo
-  if ! curl -sf http://localhost:8091/health >/dev/null 2>&1 ||
-     ! codec_worker_connected; then
+  if ! curl -sf http://localhost:8091/health >/dev/null 2>&1; then
     echo "ERROR: codec-demo is still not reachable after retry." >&2
     exit 1
   fi
