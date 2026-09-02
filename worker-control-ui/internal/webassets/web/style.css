@@ -76,6 +76,20 @@ main {
 
 .panel-header h2 { font-size: 1rem; margin: 0; flex: 1; }
 
+.instances-field { display: flex; align-items: center; gap: 0.35rem; color: var(--muted); font-size: 0.8rem; }
+
+.instances-field input {
+  width: 3.5rem;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  font: inherit;
+}
+
+.instances-field input:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .hint { color: var(--muted); font-size: 0.85rem; margin: 0.5rem 0 0.75rem; }
 
 .rate-scenario-note { flex-basis: 100%; margin: 0.4rem 0 0; font-size: 0.75rem; }

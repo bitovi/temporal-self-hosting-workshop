@@ -13,6 +13,8 @@
 
 > The setup runs automatically via `_scripts/start.sh`. Once complete, the services listed below are available.
 
+If the environment ever comes back from idle looking unhealthy, run `_scripts/restart.sh` to cycle every pod and re-validate the whole stack — Temporal's workflow history and archived data both survive it (see the script's own comments for why).
+
 ## Service Addresses
 
 Services are accessible via the **Ports** tab in the Codespace editor (or the forwarded URLs shown there).
