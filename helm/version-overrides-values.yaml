@@ -1,0 +1,8 @@
+admintools:
+  image:
+    tag: <admin tools tag>
+schema:
+  useHelmHooks: false
+server:
+  image:
+    tag: <server tag>
