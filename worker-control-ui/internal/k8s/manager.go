@@ -11,7 +11,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"strconv"
+	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -58,6 +60,14 @@ const (
 	clusterLabel = "cluster"
 	workerKind   = "worker-control-worker"
 	runnerKind   = "worker-control-runner"
+
+	// runnerTTL auto-stops a Runner this long after it's (re)started, even if
+	// nobody ever flips its switch off -- a participant who starts a Runner
+	// and then closes their laptop/tab would otherwise leave it dispatching
+	// load indefinitely (rateModeArgs' own --duration is effectively
+	// unbounded), which has previously run a participant's environment out of
+	// resources and crashed it.
+	runnerTTL = 10 * time.Minute
 )
 
 // Cluster identifies one of the two Temporal clusters this workshop runs.
@@ -153,6 +163,12 @@ var runnerExamples = map[int]runnerExample{
 type Manager struct {
 	clientset  *kubernetes.Clientset
 	restConfig *rest.Config
+
+	// runnerTimersMu guards runnerTimers, which tracks each cluster's
+	// pending runnerTTL auto-stop so a reconfigure/restart can replace it
+	// instead of leaving the old one to fire early.
+	runnerTimersMu sync.Mutex
+	runnerTimers   map[Cluster]*time.Timer
 }
 
 // NewManager builds a Manager using the in-cluster ServiceAccount config.
@@ -174,7 +190,11 @@ func NewManager() (*Manager, error) {
 		return nil, fmt.Errorf("building kubernetes clientset: %w", err)
 	}
 
-	return &Manager{clientset: clientset, restConfig: cfg}, nil
+	return &Manager{
+		clientset:    clientset,
+		restConfig:   cfg,
+		runnerTimers: make(map[Cluster]*time.Timer),
+	}, nil
 }
 
 // wrappedCommand runs bin (with args) as a *child* of a tiny shell wrapper
@@ -536,11 +556,47 @@ func (m *Manager) StartRunner(ctx context.Context, cluster Cluster, cfg RunnerCo
 	if err != nil {
 		return err
 	}
-	return m.start(ctx, deploymentName(runnerKind, cluster), deployment)
+	if err := m.start(ctx, deploymentName(runnerKind, cluster), deployment); err != nil {
+		return err
+	}
+	m.armRunnerTTL(cluster)
+	return nil
 }
 
 func (m *Manager) StopRunner(ctx context.Context, cluster Cluster) error {
+	m.disarmRunnerTTL(cluster)
 	return m.stop(ctx, deploymentName(runnerKind, cluster))
+}
+
+// armRunnerTTL (re)schedules cluster's runnerTTL auto-stop, replacing any
+// timer already pending from an earlier Start so a reconfigure doesn't cut a
+// freshly-started Runner off early.
+func (m *Manager) armRunnerTTL(cluster Cluster) {
+	m.runnerTimersMu.Lock()
+	defer m.runnerTimersMu.Unlock()
+
+	if existing, ok := m.runnerTimers[cluster]; ok {
+		existing.Stop()
+	}
+	m.runnerTimers[cluster] = time.AfterFunc(runnerTTL, func() {
+		log.Printf("runner %s: auto-stopping after %s TTL", cluster, runnerTTL)
+		if err := m.StopRunner(context.Background(), cluster); err != nil {
+			log.Printf("runner %s: TTL auto-stop failed: %v", cluster, err)
+		}
+	})
+}
+
+// disarmRunnerTTL cancels cluster's pending auto-stop, if any, so a manual
+// Stop doesn't leave a stale timer around to fire (harmlessly, but
+// pointlessly) later.
+func (m *Manager) disarmRunnerTTL(cluster Cluster) {
+	m.runnerTimersMu.Lock()
+	defer m.runnerTimersMu.Unlock()
+
+	if existing, ok := m.runnerTimers[cluster]; ok {
+		existing.Stop()
+		delete(m.runnerTimers, cluster)
+	}
 }
 
 func (m *Manager) RunnerStatus(ctx context.Context, cluster Cluster) (RunState, error) {
