@@ -219,5 +219,38 @@ async function refresh() {
   await Promise.all(Object.entries(panels).map(([kind, panel]) => refreshPanel(kind, panel)));
 }
 
+// codec-worker isn't cluster-scoped like the panels above (codec-demo is a
+// single fixed demo, always against cluster-1), so it's not part of the
+// `panels` loop -- its toggle/poll never reads state.cluster.
+let codecWorkerToggleBusy = false;
+const codecWorkerToggle = document.getElementById("codec-worker-toggle");
+const codecWorkerPill = document.getElementById("codec-worker-pill");
+
+codecWorkerToggle.addEventListener("change", async () => {
+  codecWorkerToggleBusy = true;
+  try {
+    await postJSON(`/api/codec-worker/${codecWorkerToggle.checked ? "start" : "stop"}`);
+  } catch (err) {
+    console.error(err);
+    codecWorkerToggle.checked = !codecWorkerToggle.checked;
+  } finally {
+    codecWorkerToggleBusy = false;
+  }
+});
+
+async function refreshCodecWorker() {
+  try {
+    const res = await getJSON("/api/codec-worker/status");
+    setPill(codecWorkerPill, res.state);
+    if (!codecWorkerToggleBusy) {
+      codecWorkerToggle.checked = res.state === "running" || res.state === "starting";
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 refresh();
+refreshCodecWorker();
 setInterval(refresh, 2000);
+setInterval(refreshCodecWorker, 2000);
