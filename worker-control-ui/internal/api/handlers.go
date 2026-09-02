@@ -73,6 +73,33 @@ func (h *Handlers) Routes() *http.ServeMux {
 		mux.HandleFunc("GET /api/logs/"+kind.path+"/{cluster}", h.streamLogs(t))
 	}
 
+	// codec-worker isn't cluster-scoped like worker/runner above (codec-demo
+	// is a single fixed demo, always against cluster-1), so it gets its own
+	// unparameterized routes instead of going through the {cluster} target
+	// helpers -- just start/stop/status, no kill or log streaming.
+	mux.HandleFunc("POST /api/codec-worker/start", func(w http.ResponseWriter, r *http.Request) {
+		if err := h.manager.CodecWorkerStart(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeState(w, k8s.StateStarting)
+	})
+	mux.HandleFunc("POST /api/codec-worker/stop", func(w http.ResponseWriter, r *http.Request) {
+		if err := h.manager.CodecWorkerStop(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeState(w, k8s.StateStopped)
+	})
+	mux.HandleFunc("GET /api/codec-worker/status", func(w http.ResponseWriter, r *http.Request) {
+		state, err := h.manager.CodecWorkerStatus(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeState(w, state)
+	})
+
 	return mux
 }
 

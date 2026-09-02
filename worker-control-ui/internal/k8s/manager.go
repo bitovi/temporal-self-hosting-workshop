@@ -61,6 +61,12 @@ const (
 	workerKind   = "worker-control-worker"
 	runnerKind   = "worker-control-runner"
 
+	// codecWorkerDeployment is codec-demo's fixed Deployment name (see
+	// codec-demo/manifests.yaml) -- unlike Worker/Runner it isn't
+	// per-cluster (it's a single demo, always pointed at cluster-1's
+	// frontend) and its spec never varies, so there's no need to route it
+	// through deploymentName/labelsFor/selectorFor.
+	codecWorkerDeployment = "codec-worker"
 	// runnerTTL auto-stops a Runner this long after it's (re)started, even if
 	// nobody ever flips its switch off -- a participant who starts a Runner
 	// and then closes their laptop/tab would otherwise leave it dispatching
@@ -266,6 +272,25 @@ func (m *Manager) stop(ctx context.Context, name string) error {
 
 	zero := int32(0)
 	existing.Spec.Replicas = &zero
+	_, err = deployments.Update(ctx, existing, metav1.UpdateOptions{})
+	return err
+}
+
+// scale sets name's Deployment to exactly replicas, without touching the
+// rest of its Spec. Unlike start, it never creates the Deployment -- it's
+// only for a workload (like codec-worker) whose spec is fixed and never
+// needs recreating, just toggling on/off; a missing Deployment here is a
+// real misconfiguration (see ensure_codec_demo in _scripts/start.sh, which
+// always creates it), not something to silently paper over.
+func (m *Manager) scale(ctx context.Context, name string, replicas int32) error {
+	deployments := m.clientset.AppsV1().Deployments(namespace)
+
+	existing, err := deployments.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("getting deployment %s: %w", name, err)
+	}
+
+	existing.Spec.Replicas = &replicas
 	_, err = deployments.Update(ctx, existing, metav1.UpdateOptions{})
 	return err
 }
@@ -601,6 +626,23 @@ func (m *Manager) disarmRunnerTTL(cluster Cluster) {
 
 func (m *Manager) RunnerStatus(ctx context.Context, cluster Cluster) (RunState, error) {
 	return m.status(ctx, deploymentName(runnerKind, cluster))
+}
+
+// CodecWorkerStart scales the codec-worker Deployment (created by
+// _scripts/start.sh's ensure_codec_demo) back up to 1 replica. Not
+// cluster-scoped like Worker/Runner -- codec-demo is a single fixed demo,
+// always against cluster-1 -- and its spec never varies between starts, so
+// this only ever needs to change replica count, never recreate it.
+func (m *Manager) CodecWorkerStart(ctx context.Context) error {
+	return m.scale(ctx, codecWorkerDeployment, 1)
+}
+
+func (m *Manager) CodecWorkerStop(ctx context.Context) error {
+	return m.stop(ctx, codecWorkerDeployment)
+}
+
+func (m *Manager) CodecWorkerStatus(ctx context.Context) (RunState, error) {
+	return m.status(ctx, codecWorkerDeployment)
 }
 
 // KillRunner sends SIGKILL to cluster's runner process in place (the Pod

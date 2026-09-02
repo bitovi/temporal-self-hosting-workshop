@@ -39,7 +39,8 @@
     3000,
     8181,
     9090,
-    8090
+    8090,
+    8091
   ],
   "portsAttributes": {
     "8080": {
@@ -56,6 +57,10 @@
     },
     "8090": {
       "label": "Worker Control UI"
+    },
+    "8091": {
+      "label": "Codec Server",
+      "visibility": "public"
     }
   },
   "remoteEnv": {

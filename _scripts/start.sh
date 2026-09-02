@@ -40,6 +40,7 @@ ensure_k3d_cluster() {
       -p "8181:31080@server:0" \
       -p "9090:30090@server:0" \
       -p "8090:30890@server:0" \
+      -p "8091:30091@server:0" \
       --wait --timeout 120s
   fi
 
@@ -221,6 +222,32 @@ ensure_worker_control_ui() {
   kubectl rollout status deployment/worker-control-ui --timeout=2m
 }
 
+# codec-demo is this repo's own code, not a published image, so it's built
+# and loaded into the k3d cluster directly rather than pulled from a
+# registry -- same reasoning as ensure_worker_control_ui's build step. Runs
+# on every start like the rest of the stack, but only codec-server comes up
+# running -- codec-worker's manifest pins it at 0 replicas by design
+# (see codec-demo/manifests.yaml), since Exercise 8 has participants turn it
+# on themselves via the Worker Control UI's Codec Demo Worker toggle.
+ensure_codec_demo() {
+  echo "Building codec-demo image..."
+  docker build -t codec-demo:local ./codec-demo
+  echo "Importing codec-demo image into the k3d cluster..."
+  k3d image import codec-demo:local -c dev
+
+  echo "Applying codec-demo manifests..."
+  kubectl apply -f codec-demo/manifests.yaml
+
+  # The image tag never changes across rebuilds, so `kubectl apply` alone
+  # won't pick up new image content unless the pod spec itself changed --
+  # force a fresh rollout so a rebuilt image is always picked up, same
+  # reasoning as the forced restart in ensure_worker_control_ui. Only
+  # codec-server needs this: codec-worker sits at 0 replicas until a
+  # participant turns it on, so there's nothing running yet to restart.
+  kubectl rollout restart deployment/codec-server
+  kubectl rollout status deployment/codec-server --timeout=2m
+}
+
 # Ensures Temporal namespace $2 is registered on release $1's cluster. The
 # Helm chart doesn't auto-register any namespace (its `namespaceDefaults`
 # key only configures settings *applied to* namespaces on creation, not
@@ -386,6 +413,27 @@ verify_worker_control_ui() {
   echo "worker-control-ui healthy on retry!"
 }
 
+# codec-worker sits at 0 replicas until a participant turns it on in
+# Exercise 8 (see codec-demo/manifests.yaml), so there's nothing to verify
+# for it here -- only codec-server, which is always up, needs a startup
+# health check.
+verify_codec_demo() {
+  echo "Verifying codec-demo is reachable..."
+
+  if curl -sf http://localhost:8091/health >/dev/null 2>&1; then
+    echo "codec-demo is healthy!"
+    return
+  fi
+
+  echo "codec-demo not reachable -- retrying..."
+  ensure_codec_demo
+  if ! curl -sf http://localhost:8091/health >/dev/null 2>&1; then
+    echo "ERROR: codec-demo is still not reachable after retry." >&2
+    exit 1
+  fi
+  echo "codec-demo healthy on retry!"
+}
+
 verify_prometheus_targets() {
   echo "Verifying Prometheus scrape targets..."
   local status
@@ -499,6 +547,7 @@ ensure_temporal_release cluster-1 helm/cluster-1-temporal-values.yaml
 ensure_temporal_release cluster-2 helm/cluster-2-temporal-values.yaml temporal_persistence_2 temporal_visibility_2
 ensure_minio_bucket_policy
 ensure_worker_control_ui
+ensure_codec_demo
 
 echo ""
 echo "Running post-start validation..."
@@ -518,6 +567,7 @@ verify_minio_bucket_policy
 verify_grafana_dashboards
 verify_prometheus_targets
 verify_worker_control_ui
+verify_codec_demo
 
 echo ""
 echo "All services up and validated successfully!"

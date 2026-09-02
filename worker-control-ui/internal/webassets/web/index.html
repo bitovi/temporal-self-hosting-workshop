@@ -109,6 +109,18 @@
 
       <pre class="log-pane" id="runner-log"></pre>
     </section>
+
+    <section class="panel" id="codec-worker-panel">
+      <div class="panel-header">
+        <h2>Codec Demo Worker</h2>
+        <label class="switch">
+          <input type="checkbox" id="codec-worker-toggle" />
+          <span class="slider"></span>
+        </label>
+        <span class="pill" id="codec-worker-pill">stopped</span>
+      </div>
+      <p class="hint">Runs the Exercise 8 codec demo worker (task queue <code>codec-demo</code>). Always targets cluster-1, regardless of the cluster tab selected above.</p>
+    </section>
   </main>
 
   <script src="app.js"></script>
