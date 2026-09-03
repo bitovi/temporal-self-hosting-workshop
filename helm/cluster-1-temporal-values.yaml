@@ -1,3 +1,13 @@
+schema:
+  # Keeps the persistence-password Secrets and shims ConfigMap as normal
+  # Helm-owned resources from the very first install (rather than
+  # pre-install-hook resources with no release ownership annotations), so a
+  # later helm upgrade that also sets this to false -- e.g. the version
+  # upgrade / Multi-Cluster Replication exercises' version-overrides-values.yaml --
+  # never hits "exists and cannot be imported into the current release".
+  # See SYSTEMS-942.
+  useHelmHooks: false
+
 server:
   replicaCount: 1
   additionalEnv:

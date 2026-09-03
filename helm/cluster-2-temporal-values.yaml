@@ -1,3 +1,7 @@
+schema:
+  # See matching comment in cluster-1-temporal-values.yaml (SYSTEMS-942).
+  useHelmHooks: false
+
 server:
   replicaCount: 1
   image:
