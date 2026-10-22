@@ -122,3 +122,9 @@ temporal workflow show --workflow-id <workflow-id> --namespace default \
 2. Open the namespace's **Codec Server** setting (in the Web UI's settings for the `default` namespace).
 3. Set the endpoint: `http://localhost:8091` if you're using desktop VS Code; if you're in a browser-based Codespace, use the forwarded URL for port 8091 instead (Ports tab → right-click port `8091` → **Copy Local Address**). Save.
 4. Reload the workflow's history — the payloads now decode live to readable JSON.
+
+## Workshop Visuals
+
+Interactive diagrams used during the workshop live in [`docs/visuals/`](docs/visuals/) and are published with GitHub Pages, so they open in any browser with no Codespace needed:
+
+- [Task queue separation](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/task-queue-separation.html): how long-running activities hold worker slots and stall fast work, and why separate task queues fix it. Includes a sandbox for "what if" questions.
