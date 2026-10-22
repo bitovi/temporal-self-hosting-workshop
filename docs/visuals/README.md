@@ -11,7 +11,7 @@ Each one is a single self-contained HTML file. Open it in a browser and present;
 ## Presenting
 
 - `→` / `Space` / `PgDn` next step, `←` / `PgUp` back, `1`–`9` jump
-- `N` presenter notes, `P` pause, `R` replay step, `D` half speed (request flow), `F` fullscreen, `?` all keys
+- `N` presenter notes, `P` pause, `R` replay step, `D` toggles half speed (request flow; on by default), `F` fullscreen, `?` all keys
 - Task queue page: `S` switches to **Sandbox**: sliders for arrival rate, share of slow activities, workers and slots, plus a "burst" button for live "what if…" questions
 
 Deep links: `#step3` opens a step, `#sandbox` opens the sandbox, and `#ff=10` fast-forwards the simulation (useful for screenshots).

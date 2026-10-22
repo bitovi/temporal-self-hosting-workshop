@@ -218,7 +218,7 @@
     <div class="brand"><span class="wordmark">bitovi</span><span class="deck">Self-Hosted Temporal Workshop · How a request flows through Temporal</span></div>
     <div class="nav">
       <div class="dots" id="dots"></div>
-      <button class="iconbtn" id="slowBtn" title="Half speed (D)">Slow</button>
+      <button class="iconbtn on" id="slowBtn" title="Half speed, on by default (D)">Slow</button>
       <button class="iconbtn" id="helpBtn" title="Keyboard shortcuts (?)">?</button>
     </div>
   </header>
@@ -298,7 +298,7 @@
       <span><kbd>1</kbd>–<kbd>9</kbd></span><span>Jump to step</span>
       <span><kbd>R</kbd></span><span>Replay the current step</span>
       <span><kbd>P</kbd></span><span>Pause / resume</span>
-      <span><kbd>D</kbd></span><span>Toggle half speed</span>
+      <span><kbd>D</kbd></span><span>Toggle half speed (on by default)</span>
       <span><kbd>N</kbd></span><span>Presenter notes for this step</span>
       <span><kbd>F</kbd></span><span>Fullscreen</span>
       <span><kbd>Esc</kbd></span><span>Close this panel</span>
@@ -607,7 +607,7 @@
   // Player
   // ------------------------------------------------------------------
   const stage = document.getElementById("stage");
-  let step = 0, queue = [], cur = null, paused = false, slow = false, packetEl = null;
+  let step = 0, queue = [], cur = null, paused = false, slow = true, packetEl = null;
 
   function applyInstant(hops) {
     for (const h of hops) {
