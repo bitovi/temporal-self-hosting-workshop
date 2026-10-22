@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temporal Failover Versions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Bitovi Brand Identity Guidelines v1.1 palette; Roboto is the guideline's
+     Google alternate for Garnett / Acumin Pro. Matches the other workshop visuals. */
+  :root {
+    --b-red: #F3684C;
+    --b-dark-green: #10312F;
+    --b-dark-green-90: #284644;
+    --b-dark-green-70: #586F6D;
+    --b-dark-green-50: #879897;
+    --b-dark-green-30: #B7C1C1;
+    --b-dark-green-10: #E7EAEA;
+    --b-off-white: #EDEDED;
+    --b-white: #FFFFFF;
+    --b-pink: #FFA593;
+    --b-yellow: #FFD029;
+    --b-yellow-ext: #FFF2C2;
+    --b-green: #2A6562;
+    --bad: #C8402A;
+
+    /* Cluster A = B Red family, Cluster B = teal family (as in the Miro frames) */
+    --a: #F3684C; --a-bg: #FDEEEA; --a-line: #F8A898;
+    --b: #2A9D96; --b-bg: #E3F6F5; --b-line: #96DDD8;
+    --mid-bg: #F4F1F6; --mid-line: #D6CCDD;
+
+    --font: "Roboto", "Helvetica Neue", Arial, sans-serif;
+    --mono: "Roboto Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--b-dark-green); color: var(--b-dark-green); font-family: var(--font); overflow: hidden; }
+  #app { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; background: var(--b-off-white); overflow: hidden; }
+
+  header {
+    position: absolute; left: 0; top: 0; width: 1600px; height: 72px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 40px; background: var(--b-white); border-bottom: 1px solid var(--b-dark-green-10);
+  }
+  .brand { display: flex; align-items: baseline; gap: 16px; }
+  .brand .wordmark { font-weight: 900; font-size: 26px; color: var(--b-red); letter-spacing: -0.5px; }
+  .brand .deck { font-size: 18px; color: var(--b-dark-green-70); }
+  .nav { display: flex; align-items: center; gap: 16px; }
+  .dots { display: flex; gap: 8px; }
+  .dot {
+    width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--b-dark-green-30);
+    background: transparent; color: var(--b-dark-green-70); font: 500 13px var(--font); cursor: pointer; padding: 0;
+  }
+  .dot.on { background: var(--b-dark-green); border-color: var(--b-dark-green); color: var(--b-white); }
+  .iconbtn {
+    border: 2px solid var(--b-dark-green-30); background: transparent; border-radius: 999px;
+    font: 500 15px var(--font); color: var(--b-dark-green); padding: 6px 14px; cursor: pointer;
+  }
+  .iconbtn.on { background: var(--b-dark-green); border-color: var(--b-dark-green); color: var(--b-white); }
+
+  /* ---------- stage ---------- */
+  #stage { position: absolute; left: 0; top: 72px; width: 1600px; height: 540px; }
+  #wires { position: absolute; inset: 0; z-index: 1; width: 1600px; height: 540px; pointer-events: none; }
+  .zone { position: absolute; z-index: 0; border: 2px solid; border-radius: 18px; transition: background .3s, border-color .3s; }
+  .zone.za { background: var(--a-bg); border-color: var(--a-line); left: 24px; top: 22px; width: 536px; height: 500px; }
+  .zone.zm { background: var(--mid-bg); border-color: var(--mid-line); left: 590px; top: 22px; width: 420px; height: 500px; }
+  .zone.zb { background: var(--b-bg); border-color: var(--b-line); left: 1040px; top: 22px; width: 536px; height: 500px; }
+  .zone.down { background: repeating-linear-gradient(45deg, #F6E3DF 0 10px, #FBF1EE 10px 20px); border-color: var(--bad); }
+  .zone-label {
+    position: absolute; top: -14px; left: 16px; padding: 2px 10px; border-radius: 999px;
+    font: 500 14px var(--mono); color: var(--b-dark-green-90); white-space: nowrap;
+  }
+  .za .zone-label { background: var(--a-line); }
+  .zm .zone-label { background: var(--mid-line); }
+  .zb .zone-label { background: var(--b-line); }
+  .role {
+    position: absolute; top: -15px; right: 14px; padding: 3px 12px; border-radius: 999px;
+    font: 700 12px var(--font); letter-spacing: .6px; text-transform: uppercase; background: var(--b-dark-green-30); color: var(--b-dark-green);
+  }
+  .role.active { background: var(--b-dark-green); color: var(--b-white); }
+  .role.down { background: var(--bad); color: var(--b-white); }
+
+  .box {
+    position: absolute; z-index: 2; background: var(--b-white); border: 2px solid var(--b-dark-green); border-radius: 14px;
+    padding: 10px 14px; transition: box-shadow .25s, border-color .25s;
+  }
+  .box h3 { margin: 0; font-size: 18px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .box h3 small { font: 400 12px var(--mono); color: var(--b-dark-green-70); white-space: nowrap; }
+  .box .sub { font-size: 13px; color: var(--b-dark-green-70); margin-top: 3px; line-height: 1.35; }
+  .box.lit { box-shadow: 0 0 0 5px var(--b-yellow); }
+  .box.watch { animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 4px var(--b-yellow); } 50% { box-shadow: 0 0 0 14px rgba(255,208,41,.35); } }
+  @media (prefers-reduced-motion: reduce) { .box.watch { animation: none; box-shadow: 0 0 0 6px var(--b-yellow); } }
+
+  .rows { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .ev {
+    display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 10px; border-radius: 8px;
+    background: var(--b-dark-green-10); font: 400 14px var(--mono); transition: background .3s, opacity .3s;
+    animation: drop .35s ease-out;
+  }
+  @keyframes drop { from { transform: translateY(-6px); opacity: 0; } }
+  .ev .n { width: 18px; text-align: right; color: var(--b-dark-green-50); }
+  .ev .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ev .tag { font-size: 11px; color: var(--b-dark-green-70); white-space: nowrap; }
+  .vchip { font: 700 13px var(--mono); padding: 3px 9px; border-radius: 999px; color: var(--b-white); white-space: nowrap; }
+  .vchip.ca { background: var(--a); }
+  .vchip.cb { background: var(--b); }
+  .ev.flash { background: var(--b-yellow-ext); }
+  .ev.pending { background: var(--b-white); border: 2px dashed var(--b-dark-green-50); }
+  .ev.dead { opacity: .55; background: transparent; border: 2px solid var(--bad); }
+  .ev.dead .t { text-decoration: line-through; color: var(--bad); }
+  .note { margin-top: 10px; font-size: 12px; color: var(--b-dark-green-50); }
+
+  #nsBox .big { display: flex; align-items: baseline; gap: 14px; margin-top: 8px; }
+  #nsBox .big .ver { font-size: 44px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  #nsBox .big .who { font: 500 14px var(--mono); }
+  .calc { margin-top: 10px; background: var(--b-dark-green); color: var(--b-dark-green-10); border-radius: 8px; padding: 8px 10px; font: 400 12.5px/1.55 var(--mono); min-height: 62px; }
+  .calc b { color: var(--b-yellow); font-weight: 500; }
+  .cfg { margin-top: 8px; font: 400 12.5px/1.6 var(--mono); color: var(--b-dark-green-90); }
+  .cfg b { font-weight: 500; }
+  #ranges { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .range { display: flex; justify-content: space-between; align-items: center; font: 400 13px var(--mono); background: var(--b-dark-green-10); border-radius: 7px; padding: 5px 10px; }
+
+  .packet {
+    position: absolute; left: 0; top: 0; z-index: 5; transform: translate(-50%, -50%);
+    font: 500 12.5px var(--mono); padding: 5px 10px; border-radius: 999px; white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(16,49,47,.25); pointer-events: none;
+  }
+  .packet.ra { background: var(--a); color: var(--b-white); }
+  .packet.rb { background: var(--b); color: var(--b-white); }
+  .packet.cmd { background: var(--b-dark-green); color: var(--b-white); }
+
+  #metrics {
+    position: absolute; left: 0; top: 612px; width: 1600px; height: 84px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 0 40px;
+  }
+  .tile {
+    background: var(--b-white); border-radius: 12px; padding: 10px 18px;
+    display: flex; flex-direction: column; justify-content: center; border-left: 8px solid var(--b-dark-green-30);
+  }
+  .tile .v { font-size: 28px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .tile .l { font-size: 14px; color: var(--b-dark-green-70); margin-top: 5px; display: flex; justify-content: space-between; gap: 8px; }
+  .tile .l code { font: 400 12px var(--mono); color: var(--b-dark-green-50); }
+  .tile.ta { border-left-color: var(--a); }
+  .tile.tb { border-left-color: var(--b); }
+  .tile.warn { border-left-color: var(--b-yellow); }
+  .tile.bad { border-left-color: var(--bad); }
+  .tile.bad .v { color: var(--bad); }
+
+  #caption {
+    position: absolute; left: 0; top: 708px; width: 1600px; height: 192px;
+    background: var(--b-dark-green); color: var(--b-white); padding: 22px 40px; display: flex; gap: 40px;
+  }
+  #caption .text { flex: 1 1 auto; min-width: 0; }
+  #caption .kicker { font: 500 14px var(--mono); color: var(--b-pink); letter-spacing: .5px; text-transform: uppercase; display: flex; gap: 14px; }
+  #caption .kicker .hint { color: var(--b-dark-green-50); text-transform: none; letter-spacing: 0; }
+  #caption h2 { margin: 6px 0 8px; font-size: 38px; font-weight: 700; letter-spacing: -.5px; }
+  #caption p { margin: 0; font-size: 21px; line-height: 1.4; color: var(--b-dark-green-10); max-width: 1100px; }
+  #caption p em { font-style: normal; color: var(--b-yellow); }
+  #caption code { font-family: var(--mono); font-size: .9em; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 4px; }
+  .card { background: var(--b-dark-green-90); border-radius: 12px; padding: 12px 14px; }
+  .card h3 { margin: 0 0 4px; font-size: 18px; }
+  .card p { font-size: 14.5px !important; line-height: 1.35 !important; }
+
+  .overlay { position: absolute; inset: 0; background: rgba(16,49,47,.82); display: none; align-items: center; justify-content: center; z-index: 20; }
+  .overlay.show { display: flex; }
+  .panel { background: var(--b-white); border-radius: 16px; padding: 28px 34px; width: 1000px; max-height: 780px; overflow: auto; font-size: 18px; line-height: 1.5; }
+  .panel h3 { margin: 0 0 12px; font-size: 24px; }
+  .panel kbd { font: 500 14px var(--mono); background: var(--b-dark-green-10); border-radius: 6px; padding: 2px 8px; }
+  .panel code { font: 400 15px var(--mono); }
+  .panel ul { margin: 0; padding-left: 22px; }
+  .panel .keys { display: grid; grid-template-columns: 220px 1fr; gap: 8px 16px; }
+  #paused {
+    position: absolute; left: 40px; top: 84px; z-index: 6; display: none;
+    font: 700 13px var(--font); letter-spacing: .8px; text-transform: uppercase;
+    background: var(--b-yellow); border-radius: 999px; padding: 4px 12px;
+  }
+  #paused.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span class="wordmark">bitovi</span><span class="deck">Self-Hosted Temporal Workshop · Multi-cluster failover versions</span></div>
+    <div class="nav">
+      <div class="dots" id="dots"></div>
+      <button class="iconbtn on" id="slowBtn" title="Half speed, on by default (D)">Slow</button>
+      <button class="iconbtn" id="helpBtn" title="Keyboard shortcuts (?)">?</button>
+    </div>
+  </header>
+
+  <div id="stage">
+    <svg id="wires"></svg>
+    <div class="zone za" id="zoneA"><span class="zone-label"><b>Cluster A</b> · initialFailoverVersion 1</span><span class="role" id="roleA">passive</span></div>
+    <div class="zone zm"><span class="zone-label"><b>Global namespace</b> · payments</span></div>
+    <div class="zone zb" id="zoneB"><span class="zone-label"><b>Cluster B</b> · initialFailoverVersion 2</span><span class="role" id="roleB">passive</span></div>
+
+    <div class="box" id="boxA">
+      <h3>Event history in A<small>workflow order-77</small></h3>
+      <div class="rows" id="rowsA"></div>
+      <div class="note">Simplified: one row per step of the workflow, not every event.</div>
+    </div>
+
+    <div class="box" id="nsBox">
+      <h3>Namespace version<small>payments</small></h3>
+      <div class="big"><span class="ver" id="nsVer">-</span><span class="who" id="nsWho">no workflow yet</span></div>
+      <div class="calc" id="calc">version % 10 tells you which cluster wrote it:<br>1 → A &nbsp;·&nbsp; 2 → B</div>
+      <div class="cfg">failoverVersionIncrement: <b>10</b> (all clusters)<br>initialFailoverVersion: A=<b>1</b>, B=<b>2</b></div>
+    </div>
+
+    <div class="box" id="histBox">
+      <h3>Version history<small>current branch</small></h3>
+      <div id="ranges"></div>
+    </div>
+
+    <div class="box" id="boxB">
+      <h3>Event history in B<small>workflow order-77</small></h3>
+      <div class="rows" id="rowsB"></div>
+      <div class="note">Simplified: one row per step of the workflow, not every event.</div>
+    </div>
+  </div>
+  <div id="paused">Paused · P to resume</div>
+
+  <div id="metrics">
+    <div class="tile" id="mVer"><div class="v">-</div><div class="l">Namespace version <code>failover version</code></div></div>
+    <div class="tile" id="mAct"><div class="v">-</div><div class="l">Active cluster for payments <code>per namespace</code></div></div>
+    <div class="tile" id="mLag"><div class="v">0</div><div class="l">Events not replicated yet <code>async replication</code></div></div>
+    <div class="tile" id="mLost"><div class="v">0</div><div class="l">Events discarded in a conflict <code>lower version</code></div></div>
+  </div>
+
+  <div id="caption"></div>
+
+  <div class="overlay" id="help"><div class="panel">
+    <h3>Presenter keys</h3>
+    <div class="keys">
+      <span><kbd>→</kbd> <kbd>Space</kbd> <kbd>PgDn</kbd></span><span>Next step (finishes the current animation first)</span>
+      <span><kbd>←</kbd> <kbd>PgUp</kbd></span><span>Previous step</span>
+      <span><kbd>1</kbd>–<kbd>7</kbd></span><span>Jump to step</span>
+      <span><kbd>R</kbd></span><span>Replay the current step</span>
+      <span><kbd>P</kbd></span><span>Pause / resume</span>
+      <span><kbd>D</kbd></span><span>Toggle half speed (on by default)</span>
+      <span><kbd>N</kbd></span><span>Presenter notes for this step</span>
+      <span><kbd>F</kbd></span><span>Fullscreen</span>
+      <span><kbd>Esc</kbd></span><span>Close this panel</span>
+    </div>
+  </div></div>
+  <div class="overlay" id="notes"><div class="panel" id="notesBody"></div></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const INC = 10, INIT = { A: 1, B: 2 };
+  // Same math as temporalio/temporal common/cluster/metadata.go GetNextFailoverVersion.
+  function nextVersion(cluster, cur) {
+    const v = Math.floor(cur / INC) * INC + INIT[cluster];
+    return v < cur ? v + INC : v;
+  }
+  const clusterOf = v => v % INC === INIT.A ? "A" : "B";
+
+  const BOX = {
+    A:    { el: "boxA",    x: 44,   y: 50,  w: 496, h: 450 },
+    ns:   { el: "nsBox",   x: 610,  y: 50,  w: 380, h: 240 },
+    hist: { el: "histBox", x: 610,  y: 340, w: 380, h: 160 },
+    B:    { el: "boxB",    x: 1060, y: 50,  w: 496, h: 450 },
+  };
+  for (const k in BOX) {
+    const b = BOX[k], el = document.getElementById(b.el);
+    Object.assign(el.style, { left: b.x + "px", top: b.y + "px", width: b.w + "px", height: b.h + "px" });
+    b.node = el;
+  }
+  // Replication runs along the gap between the namespace card and the version history.
+  const ROUTES = {
+    "A>B":  [[540, 315], [1060, 315]],
+    "ns>A": [[610, 110], [540, 110]],
+    "ns>B": [[990, 110], [1060, 110]],
+  };
+  function route(from, to) {
+    if (ROUTES[from + ">" + to]) return ROUTES[from + ">" + to];
+    return ROUTES[to + ">" + from].slice().reverse();
+  }
+  const wires = document.getElementById("wires");
+  function drawWires(active) {
+    const act = active ? (ROUTES[active[0] + ">" + active[1]] || ROUTES[active[1] + ">" + active[0]]) : null;
+    let svg = Object.values(ROUTES).map(r =>
+      `<polyline points="${r.map(p => p.join(",")).join(" ")}" fill="none" stroke="${r === act ? "#10312F" : "#B7C1C1"}" stroke-width="${r === act ? 4 : 2.5}" stroke-linecap="round"/>`).join("");
+    svg += `<text x="800" y="310" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="13" fill="${S.lag ? "#C8402A" : "#586F6D"}">${S.lag ? "replication lagging…" : "replication (async)"}</text>`;
+    wires.innerHTML = svg;
+  }
+
+  // ------------------------------------------------------------------
+  // State
+  // ------------------------------------------------------------------
+  const STEP_NAMES = ["WorkflowExecutionStarted", "Reserve inventory ✓", "Charge card ✓", "Ship order ✓", "WorkflowExecutionCompleted"];
+  let S;
+  function fresh() {
+    return { ns: null, A: [], B: [], down: null, lag: false, lost: 0, flash: null, watch: null, calc: null };
+  }
+  // A row is { n, v, t, st } with st = ok | pending | dead.
+  const row = (n, v, t, st = "ok") => ({ n, v, t: t || STEP_NAMES[n - 1], st });
+  function write(c, n, v, t, st) {
+    const rows = S[c];
+    const i = rows.findIndex(r => r.n === n && r.st !== "dead");
+    if (i >= 0) rows[i] = row(n, v, t, st); else rows.push(row(n, v, t, st));
+    S.flash = { c, n };
+  }
+  function copy(from, to, n) {
+    const r = S[from].find(x => x.n === n && x.st !== "dead");
+    r.st = "ok";
+    const i = S[to].findIndex(x => x.n === n && x.st !== "dead");
+    if (i >= 0) S[to][i] = { ...r }; else S[to].push({ ...r });
+    S.flash = { c: to, n };
+  }
+
+  function paint() {
+    for (const c of ["A", "B"]) {
+      const rows = [...S[c]].sort((a, b) => a.n - b.n || (a.st === "dead" ? -1 : 1));
+      document.getElementById("rows" + c).innerHTML = rows.map(r =>
+        `<div class="ev${r.st === "pending" ? " pending" : r.st === "dead" ? " dead" : ""}${S.flash && S.flash.c === c && S.flash.n === r.n && r.st !== "dead" ? " flash" : ""}">` +
+        `<span class="n">${r.n}</span><span class="t">${r.t}</span>` +
+        (r.st === "pending" ? `<span class="tag">not replicated yet</span>` : r.st === "dead" ? `<span class="tag">lower version, discarded</span>` : "") +
+        `<span class="vchip c${clusterOf(r.v).toLowerCase()}">v${r.v}</span></div>`).join("");
+      const role = document.getElementById("role" + c);
+      const isDown = S.down === c, isActive = S.ns && S.ns.active === c;
+      role.className = "role" + (isDown ? " down" : isActive ? " active" : "");
+      role.textContent = isDown ? "down" : isActive ? "active" : "passive";
+      document.getElementById("zone" + c).classList.toggle("down", isDown);
+      BOX[c].node.classList.toggle("watch", S.watch === c);
+    }
+    BOX.ns.node.classList.toggle("watch", S.watch === "ns");
+    BOX.hist.node.classList.toggle("watch", S.watch === "hist");
+    document.getElementById("nsVer").textContent = S.ns ? "v" + S.ns.v : "-";
+    document.getElementById("nsVer").style.color = S.ns ? (S.ns.active === "A" ? "var(--a)" : "var(--b)") : "";
+    document.getElementById("nsWho").textContent = S.ns ? `active in Cluster ${S.ns.active}` : "no workflow yet";
+    if (S.calc) document.getElementById("calc").innerHTML = S.calc;
+    else document.getElementById("calc").innerHTML = "version % 10 tells you which cluster wrote it:<br><b>1 → A</b> &nbsp;·&nbsp; <b>2 → B</b>";
+
+    // Version history of the current (highest-version) branch: ranges of consecutive events per version.
+    const src = S.ns ? S[S.down === S.ns.active ? (S.ns.active === "A" ? "B" : "A") : S.ns.active] : [];
+    const cur = src.filter(r => r.st !== "dead").sort((a, b) => a.n - b.n);
+    const ranges = [];
+    for (const r of cur) {
+      const last = ranges[ranges.length - 1];
+      if (last && last.v === r.v) last.to = r.n; else ranges.push({ v: r.v, from: r.n, to: r.n });
+    }
+    document.getElementById("ranges").innerHTML = ranges.length ? ranges.map(g =>
+      `<div class="range"><span>${g.to !== g.from ? "events " + g.from + "–" + g.to : "event " + g.from}</span><span>written by Cluster ${clusterOf(g.v)}</span><span class="vchip c${clusterOf(g.v).toLowerCase()}">v${g.v}</span></div>`).join("")
+      : `<div class="range"><span>empty</span></div>`;
+
+    const lag = ["A", "B"].reduce((n, c) => n + S[c].filter(r => r.st === "pending").length, 0);
+    tile("mVer", S.ns ? "v" + S.ns.v : "-", S.ns ? (S.ns.active === "A" ? "ta" : "tb") : "");
+    tile("mAct", S.ns ? "Cluster " + S.ns.active : "-", S.ns ? (S.ns.active === "A" ? "ta" : "tb") : "");
+    tile("mLag", lag, lag ? "warn" : "");
+    tile("mLost", S.lost, S.lost ? "bad" : "");
+    drawWires(cur_ && cur_.hop.from ? [cur_.hop.from, cur_.hop.to] : null);
+  }
+  function tile(id, v, cls) { const el = document.getElementById(id); el.querySelector(".v").textContent = v; el.className = "tile" + (cls ? " " + cls : ""); }
+
+  // ------------------------------------------------------------------
+  // Hops
+  // ------------------------------------------------------------------
+  const go = (from, to, kind, label, fx, dwell) => ({ from, to, kind, label, fx, dwell });
+  const act = (fx, wait = 1.0) => ({ fx, wait });
+  const rep = (from, n, v) => go(from, from === "A" ? "B" : "A", "r" + from.toLowerCase(), `replicate event ${n} · v${v}`, s => copy(from, from === "A" ? "B" : "A", n));
+  function failover(to, forced) {
+    return [
+      act(s => {
+        const v0 = s.ns.v, v = nextVersion(to, v0);
+        s.calc = `${forced ? "forced " : ""}failover payments → <b>Cluster ${to}</b><br>smallest v ≥ ${v0} where v % 10 = ${INIT[to]}<br>→ <b>v${v}</b>`;
+        s.watch = "ns";
+      }, 2.2),
+      act(s => { s.ns = { active: to, v: nextVersion(to, s.ns.v) }; s.watch = null; }, 0.6),
+      go("ns", to, "cmd", `you're active · v${"{V}"}`),
+    ];
+  }
+
+  // Story 1: normal failover and failback.
+  const START = [
+    act(s => { s.ns = { active: "A", v: 1 }; write("A", 1, 1); }, 0.9),
+    rep("A", 1, 1),
+    act(s => write("A", 2, 1), 0.9),
+    rep("A", 2, 1),
+  ];
+  const STAMP = [
+    act(s => { s.watch = "A"; s.calc = "Every event records the namespace version<br>it was written under: <b>v1</b><br>1 % 10 = 1 → <b>Cluster A</b> wrote it"; }, 1.6),
+    act(s => { s.watch = "B"; }, 1.4),
+    act(s => { s.watch = null; }, 0.2),
+  ];
+  const TO_B = [
+    ...failover("B"),
+    act(s => { s.watch = "B"; }, 0.6),
+    act(s => write("B", 3, s.ns.v, "Charge card ✓ (retried on B)"), 1.2),
+    rep("B", 3, 2),
+    act(s => { s.watch = null; }, 0.2),
+  ];
+  const BACK_A = [
+    ...failover("A"),
+    act(s => { s.watch = "A"; }, 0.6),
+    act(s => write("A", 4, s.ns.v), 0.9),
+    rep("A", 4, 11),
+    act(s => write("A", 5, s.ns.v), 0.9),
+    rep("A", 5, 11),
+    act(s => { s.watch = "hist"; }, 1.2),
+  ];
+  // Story 2: replication lag, then a forced failover, then the conflict.
+  const LAG = [
+    act(s => { s.lag = true; write("A", 3, 1, "Charge card ✓", "pending"); s.watch = "A"; }, 1.6),
+    act(s => { s.down = "A"; s.calc = "Cluster A is down.<br>Event 3 never reached B."; }, 2.0),
+    ...failover("B", true),
+    act(s => { s.watch = "B"; }, 0.6),
+    act(s => write("B", 3, s.ns.v, "Charge card ✓ (charged again)"), 1.4),
+  ];
+  const CONFLICT = [
+    act(s => { s.down = null; s.watch = "A"; s.calc = "Cluster A is back, now <b>passive</b>.<br>Its event 3 is v1. B's event 3 is v2."; }, 1.8),
+    go("A", "B", "ra", "replicate event 3 · v1 (stale)"),
+    act(s => {
+      s.watch = "B";
+      s.calc = "Two branches for event 3:<br>A's v1 vs B's <b>v2</b><br>highest version wins → <b>B's branch</b>";
+    }, 2.2),
+    go("B", "A", "rb", "replicate event 3 · v2"),
+    act(s => {
+      const r = s.A.find(x => x.n === 3); r.st = "dead"; s.lost = 1; s.lag = false;
+      s.A.push(row(3, 2, "Charge card ✓ (charged again)"));
+      s.flash = { c: "A", n: 3 }; s.watch = "A";
+    }, 1.6),
+    act(s => { s.watch = null; }, 0.2),
+  ];
+
+  const STEPS = [
+    {
+      kicker: "1 · One namespace, two clusters",
+      title: "The namespace is active in one cluster at a time",
+      body: "<code>payments</code> is a <em>global namespace</em>: active in Cluster A, passive in B. Workflows run in A, and every event is copied to B by <em>asynchronous</em> replication.",
+      notes: [
+        "Failover is per namespace, not per cluster. A cluster can be active for one namespace and passive for another.",
+        "A namespace has to be promoted to global (enableGlobalNamespace). Phil: don't promote default.",
+        "Replication is async for throughput, so the clusters are not strongly consistent (Temporal docs, Multi-Cluster Replication).",
+      ],
+      prior: [], hops: START,
+    },
+    {
+      kicker: "2 · The stamp",
+      title: "Every event is stamped with the namespace version",
+      body: "Each event records the namespace's <em>failover version</em> when it was written. Version % increment points to the cluster that wrote it: <code>1 % 10 = 1</code>, so Cluster A.",
+      notes: [
+        "Docs: \"each Workflow History entry carries the Namespace's version.\"",
+        "Config (clusterMetadata): failoverVersionIncrement must be equal on every cluster; initialFailoverVersion must be unique per cluster and smaller than the increment (server validates this).",
+        "Frame 16's labels (activity_<version>.<cluster>.<id>) are the same idea: the version is part of every event.",
+      ],
+      prior: [START], hops: STAMP,
+    },
+    {
+      kicker: "3 · Failover",
+      title: "Failover bumps the version",
+      body: "Fail <code>payments</code> over to B. The new version is the <em>smallest number at or above the old one</em> that maps to B: v2. B carries on from event 3 and stamps its events v2.",
+      notes: [
+        "Math from temporalio/temporal common/cluster/metadata.go GetNextFailoverVersion: floor(v/inc)*inc + initial, plus inc if that's below the current version.",
+        "Charge was running on A's worker. Activity completions are not forwarded across clusters, so that attempt times out and the activity is retried on B. Activities must be idempotent.",
+        "Phil's walkthrough: \"Activity one was already done. Doesn't need to do it again.\" Correct: completed events are already in B's copy of the history.",
+      ],
+      prior: [START], hops: TO_B,
+    },
+    {
+      kicker: "4 · Fail back",
+      title: "Back to A: v11, not v1",
+      body: "Fail back to A. The version can't go backwards, so A gets the next number that maps to it: <em>11</em>. The version history now reads v1, v2, v11, which is the order the clusters took over.",
+      notes: [
+        "Docs example: namespace β at v2 moves to A (initial 1) → \"namespace β's version is 11\".",
+        "Correction to Frame 13: with increment 10, versions look like 1, 2, 11, 12, 21… The labels 10 and 20 can't happen, because initial versions must be below the increment.",
+        "Planned moves should use the graceful handover (namespace-handover workflow) so no progress rolls back.",
+      ],
+      prior: [START, TO_B], hops: BACK_A,
+    },
+    {
+      kicker: "5 · The gap",
+      title: "Async replication leaves a window",
+      body: "A charges the card, but <em>event 3 hasn't replicated yet</em> when A goes down. A forced failover moves payments to B at v2. B never saw event 3, so it runs Charge again.",
+      notes: [
+        "Docs: replication is async, so \"some progress could roll back during failovers.\"",
+        "This is why activities must be idempotent: here the card would be charged twice without an idempotency key.",
+        "Forced failover is for when the active cluster can't do a handover. It can briefly leave both clusters active or both passive.",
+      ],
+      prior: [START], hops: LAG,
+    },
+    {
+      kicker: "6 · Conflict",
+      title: "The higher version wins",
+      body: "A comes back with its own event 3 at v1. B's event 3 is v2. The branch with the <em>highest version</em> becomes current, A's v1 event is discarded, and A rebuilds from B's history.",
+      notes: [
+        "Docs: \"the history branch with the highest version is considered the current branch\", followed by a full rebuild of mutable state.",
+        "Correction to the whiteboard version: initialFailoverVersion is not a fixed priority. Versions grow with each failover, so the higher version means the more recent failover, whichever cluster that was.",
+        "Tasks from the losing branch are checked against event ID and version and discarded. Signals on the losing branch are re-injected, not lost.",
+      ],
+      prior: [START, LAG], hops: CONFLICT,
+    },
+    {
+      kicker: "7 · Recap",
+      cards: [
+        ["Every event is stamped", "With the namespace version. version % failoverVersionIncrement = the initialFailoverVersion of the cluster that wrote it."],
+        ["Failover bumps it", "Next version = smallest number ≥ the current one that maps to the new cluster. Versions only go up."],
+        ["Highest version wins", "On divergent histories the branch with the highest version is kept. Lower-version events are discarded."],
+        ["Plan for the gap", "Async replication can roll back recent progress. Idempotent activities, handover for planned moves, forced failover only in an outage."],
+      ],
+      notes: [
+        "Config choices: pick failoverVersionIncrement with room for every cluster you might add. Temporal's docs don't describe changing it later, so treat it as fixed.",
+        "Multi-cluster replication is marked experimental in Temporal's self-hosted docs.",
+      ],
+      prior: [START, TO_B, BACK_A], hops: [],
+    },
+  ];
+
+  // ------------------------------------------------------------------
+  // Player
+  // ------------------------------------------------------------------
+  const stage = document.getElementById("stage");
+  let step = 0, queue = [], cur_ = null, paused = false, slow = true, packetEl = null;
+
+  function goStep(i) {
+    step = Math.max(0, Math.min(STEPS.length - 1, i));
+    const s = STEPS[step];
+    S = fresh();
+    s.prior.forEach(hops => hops.forEach(h => h.fx && h.fx(S, 1)));
+    S.flash = null; S.watch = null; S.calc = null;
+    queue = s.hops.slice(); cur_ = null;
+    clearPacket(); paint(); renderCaption();
+    [...document.getElementById("dots").children].forEach((d, j) => d.classList.toggle("on", j === step));
+    history.replaceState(null, "", "#step" + (step + 1));
+    if (document.getElementById("notes").classList.contains("show")) showNotes();
+  }
+  function clearPacket() {
+    if (packetEl) { packetEl.remove(); packetEl = null; }
+    for (const k in BOX) BOX[k].node.classList.remove("lit");
+  }
+  function finishStep() {
+    if (cur_ && cur_.hop.fx && !cur_.landed) cur_.hop.fx(S, 1);
+    queue.forEach(h => h.fx && h.fx(S, 1));
+    queue = []; cur_ = null; S.watch = null;
+    clearPacket(); paint(); renderCaption();
+  }
+  const busy = () => !!cur_ || queue.length > 0;
+
+  function startHop(h) {
+    cur_ = { hop: h, t: 0, landed: false };
+    if (h.from) {
+      const r = route(h.from, h.to);
+      const segs = []; let len = 0;
+      for (let i = 1; i < r.length; i++) { const d = Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); segs.push(d); len += d; }
+      Object.assign(cur_, { r, segs, len, dur: 0.6 + len / 600 });
+      packetEl = document.createElement("div");
+      packetEl.className = "packet " + h.kind;
+      packetEl.textContent = h.label.replace("{V}", S.ns ? S.ns.v : "");
+      stage.appendChild(packetEl);
+      if (BOX[h.from]) BOX[h.from].node.classList.add("lit");
+      paint();
+    }
+  }
+  function along(c, p) {
+    let d = p * c.len;
+    for (let i = 0; i < c.segs.length; i++) {
+      if (d <= c.segs[i] || i === c.segs.length - 1) {
+        const f = c.segs[i] ? Math.min(1, d / c.segs[i]) : 1, a = c.r[i], b = c.r[i + 1];
+        return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+      }
+      d -= c.segs[i];
+    }
+  }
+  function update(dt) {
+    if (!cur_ && queue.length) startHop(queue.shift());
+    if (!cur_) return;
+    const h = cur_.hop;
+    cur_.t += dt;
+    if (h.from) {
+      const p = Math.min(1, cur_.t / cur_.dur), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      const [x, y] = along(cur_, e);
+      packetEl.style.left = x + "px"; packetEl.style.top = y + "px";
+      if (p >= 1 && !cur_.landed) {
+        cur_.landed = true;
+        if (BOX[h.from]) BOX[h.from].node.classList.remove("lit");
+        if (BOX[h.to]) BOX[h.to].node.classList.add("lit");
+        if (h.fx) h.fx(S, 1);
+        paint();
+      }
+      if (cur_.t >= cur_.dur + (h.dwell ?? 0.3)) end();
+    } else {
+      if (!cur_.landed) { cur_.landed = true; h.fx(S, 1); paint(); }
+      if (cur_.t >= (h.wait ?? 0.4)) end();
+    }
+  }
+  function end() { clearPacket(); cur_ = null; paint(); if (!busy()) renderCaption(); }
+
+  function renderCaption() {
+    const s = STEPS[step], cap = document.getElementById("caption");
+    const hint = busy() ? "" : (step < STEPS.length - 1 ? "<span class=\"hint\">→ next</span>" : "");
+    if (s.cards) {
+      cap.innerHTML = `<div class="text"><div class="kicker">${s.kicker}${hint}</div><div class="cards">${s.cards.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join("")}</div></div>`;
+      return;
+    }
+    cap.innerHTML = `<div class="text"><div class="kicker">${s.kicker}${hint}</div><h2>${s.title}</h2><p>${s.body}</p></div>`;
+  }
+
+  // ------------------------------------------------------------------
+  // Shell
+  // ------------------------------------------------------------------
+  const app = document.getElementById("app");
+  const dotsEl = document.getElementById("dots");
+  STEPS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "dot"; b.textContent = i + 1; b.title = s.title || s.kicker;
+    b.onclick = () => goStep(i);
+    dotsEl.appendChild(b);
+  });
+  function next() { if (busy()) finishStep(); else goStep(step + 1); }
+  function togglePause() { paused = !paused; document.getElementById("paused").classList.toggle("show", paused); }
+  function toggleSlow() { slow = !slow; document.getElementById("slowBtn").classList.toggle("on", slow); }
+  document.getElementById("slowBtn").onclick = toggleSlow;
+  function showNotes() {
+    const s = STEPS[step];
+    document.getElementById("notesBody").innerHTML = `<h3>Notes · ${s.kicker}</h3><ul>${s.notes.map(n => `<li>${n}</li>`).join("")}</ul>`;
+    document.getElementById("notes").classList.add("show");
+  }
+  const closeOverlays = () => document.querySelectorAll(".overlay").forEach(o => o.classList.remove("show"));
+  document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", closeOverlays));
+  document.getElementById("helpBtn").onclick = () => document.getElementById("help").classList.add("show");
+  document.addEventListener("keydown", e => {
+    const k = e.key;
+    if (k === "Escape") return closeOverlays();
+    if (k === "?") return document.getElementById("help").classList.add("show");
+    if (k === "n" || k === "N") { const n = document.getElementById("notes"); return n.classList.contains("show") ? closeOverlays() : showNotes(); }
+    if (k === "f" || k === "F") return document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
+    if (k === "p" || k === "P") return togglePause();
+    if (k === "d" || k === "D") return toggleSlow();
+    if (k === "r" || k === "R") return goStep(step);
+    if (k === "ArrowRight" || k === "PageDown" || k === " ") { e.preventDefault(); next(); }
+    else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); goStep(step - 1); }
+    else if (k === "Home") goStep(0);
+    else if (/^[1-7]$/.test(k)) goStep(Number(k) - 1);
+  });
+  function fit() {
+    const s = Math.min(innerWidth / 1600, innerHeight / 900);
+    app.style.transform = `translate(${(innerWidth - 1600 * s) / 2}px, ${(innerHeight - 900 * s) / 2}px) scale(${s})`;
+  }
+  addEventListener("resize", fit);
+  fit();
+
+  // #step3 opens a step (#step=3 also works locally); #ff=N fast-forwards N seconds (handy for screenshots).
+  const m = location.hash.match(/step=?(\d)/), ff = location.hash.match(/ff=(\d+)/);
+  goStep(m ? Number(m[1]) - 1 : 0);
+  if (ff) for (let i = 0; i < Number(ff[1]) * 60; i++) update(1 / 60);
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (!paused) update(slow ? dt / 2 : dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

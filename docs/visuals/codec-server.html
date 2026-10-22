@@ -1,0 +1,771 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temporal Codec Server</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Bitovi Brand Identity Guidelines v1.1 palette; Roboto is the guideline's
+     Google alternate for Garnett / Acumin Pro. Matches the other workshop visuals. */
+  :root {
+    --b-red: #F3684C;
+    --b-dark-green: #10312F;
+    --b-dark-green-90: #284644;
+    --b-dark-green-70: #586F6D;
+    --b-dark-green-50: #879897;
+    --b-dark-green-30: #B7C1C1;
+    --b-dark-green-10: #E7EAEA;
+    --b-off-white: #EDEDED;
+    --b-white: #FFFFFF;
+    --b-pink: #FFA593;
+    --b-yellow: #FFD029;
+    --b-yellow-ext: #FFF2C2;
+    --b-light-blue: #A9C7EA;
+    --b-green: #2A6562;
+    --b-red-tint: #FDE9E5;
+    --bad: #C8402A;
+
+    /* One tint per boundary: Canada (your infra) / US (Temporal) / operators */
+    --zone-ca-bg: #EEF4FB;  --zone-ca-line: var(--b-light-blue);
+    --zone-us-bg: #E3F6F5;  --zone-us-line: #96DDD8;
+    --zone-op-bg: #F4F1F6;  --zone-op-line: #D6CCDD;
+
+    --plain: #FDE9E5; --plain-line: var(--bad);
+    --cipher: #3B4F4D;
+
+    --font: "Roboto", "Helvetica Neue", Arial, sans-serif;
+    --mono: "Roboto Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--b-dark-green); color: var(--b-dark-green); font-family: var(--font); overflow: hidden; }
+  #app { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; background: var(--b-off-white); overflow: hidden; }
+
+  header {
+    position: absolute; left: 0; top: 0; width: 1600px; height: 72px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 40px; background: var(--b-white); border-bottom: 1px solid var(--b-dark-green-10);
+  }
+  .brand { display: flex; align-items: baseline; gap: 16px; }
+  .brand .wordmark { font-weight: 900; font-size: 26px; color: var(--b-red); letter-spacing: -0.5px; }
+  .brand .deck { font-size: 18px; color: var(--b-dark-green-70); }
+  .nav { display: flex; align-items: center; gap: 16px; }
+  .dots { display: flex; gap: 8px; }
+  .dot {
+    width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--b-dark-green-30);
+    background: transparent; color: var(--b-dark-green-70); font: 500 13px var(--font); cursor: pointer; padding: 0;
+  }
+  .dot.on { background: var(--b-dark-green); border-color: var(--b-dark-green); color: var(--b-white); }
+  .iconbtn {
+    border: 2px solid var(--b-dark-green-30); background: transparent; border-radius: 999px;
+    font: 500 15px var(--font); color: var(--b-dark-green); padding: 6px 14px; cursor: pointer;
+  }
+  .iconbtn.on { background: var(--b-dark-green); border-color: var(--b-dark-green); color: var(--b-white); }
+
+  /* ---------- stage ---------- */
+  #stage { position: absolute; left: 0; top: 72px; width: 1600px; height: 540px; }
+  #wires { position: absolute; inset: 0; z-index: 1; width: 1600px; height: 540px; pointer-events: none; }
+  .zone { position: absolute; z-index: 0; border: 2px solid; border-radius: 18px; }
+  .zone.ca { background: var(--zone-ca-bg); border-color: var(--zone-ca-line); }
+  .zone.us { background: var(--zone-us-bg); border-color: var(--zone-us-line); }
+  .zone.op { background: var(--zone-op-bg); border-color: var(--zone-op-line); }
+  .zone-label {
+    position: absolute; top: -14px; left: 16px; padding: 2px 10px; border-radius: 999px;
+    font: 500 14px var(--mono); color: var(--b-dark-green-90); white-space: nowrap;
+  }
+  .zone.ca .zone-label { background: var(--zone-ca-line); }
+  .zone.us .zone-label { background: var(--zone-us-line); }
+  .zone.op .zone-label { background: var(--zone-op-line); }
+  .verdict {
+    position: absolute; top: -15px; right: 14px; padding: 3px 12px; border-radius: 999px; display: none;
+    font: 700 12px var(--font); letter-spacing: .5px; text-transform: uppercase;
+  }
+  .verdict.bad { display: block; background: var(--bad); color: var(--b-white); }
+  .verdict.good { display: block; background: var(--b-green); color: var(--b-white); }
+
+  .box {
+    position: absolute; z-index: 2; background: var(--b-white); border: 2px solid var(--b-dark-green); border-radius: 14px;
+    padding: 10px 14px; transition: box-shadow .25s, opacity .3s, border-color .25s;
+  }
+  .box h3 { margin: 0; font-size: 18px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .box h3 small { font: 400 12px var(--mono); color: var(--b-dark-green-70); white-space: nowrap; }
+  .box .sub { font-size: 13px; color: var(--b-dark-green-70); margin-top: 3px; line-height: 1.35; }
+  .box.lit { box-shadow: 0 0 0 5px var(--b-yellow); }
+  .box.idle { opacity: .4; }
+  .box.alarm { border-color: var(--bad); box-shadow: 0 0 0 5px rgba(200,64,42,.35); }
+
+  .status { margin-top: 8px; font: 500 13px var(--mono); color: var(--b-green); min-height: 18px; line-height: 1.4; }
+  .status.warn { color: var(--bad); }
+  .badge {
+    display: inline-block; margin-top: 8px; padding: 3px 9px; border-radius: 999px;
+    font: 500 12px var(--mono); background: var(--b-dark-green-10); color: var(--b-dark-green-70);
+  }
+  .badge.on { background: var(--b-green); color: var(--b-white); }
+
+  .val {
+    font: 400 12px var(--mono); border-radius: 6px; padding: 3px 8px; display: inline-block; max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle;
+  }
+  .val.plain { background: var(--plain); color: var(--bad); border: 1.5px solid var(--plain-line); font-weight: 500; }
+  .val.cipher { background: var(--cipher); color: #C7D3D1; }
+  .val.empty { color: var(--b-dark-green-30); border: 1.5px dashed var(--b-dark-green-10); }
+
+  #rows { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .ev { background: var(--b-dark-green-10); border-radius: 8px; padding: 5px 10px; transition: background .3s; }
+  .ev .top { display: flex; gap: 10px; font: 400 13px var(--mono); color: var(--b-dark-green-90); }
+  .ev .top .n { width: 20px; text-align: right; color: var(--b-dark-green-50); }
+  .ev .top .f { margin-left: auto; color: var(--b-dark-green-50); }
+  .ev .val { margin: 3px 0 0 30px; max-width: calc(100% - 30px); }
+  .ev.flash { background: var(--b-yellow-ext); }
+  .dbfoot { margin-top: 8px; font-size: 12px; color: var(--b-dark-green-70); line-height: 1.4; }
+  .dbfoot b { font-weight: 500; color: var(--b-dark-green); }
+
+  .field { margin-top: 8px; }
+  .field label { display: block; font-size: 12px; color: var(--b-dark-green-70); margin-bottom: 2px; }
+  .term { margin-top: 8px; background: var(--b-dark-green); color: var(--b-dark-green-10); border-radius: 8px; padding: 8px 10px; font: 400 12px/1.5 var(--mono); }
+  .term .flag { color: var(--b-yellow); }
+  .term .out { margin-top: 4px; }
+
+  .packet {
+    position: absolute; left: 0; top: 0; z-index: 5; transform: translate(-50%, -50%);
+    font: 500 12px var(--mono); padding: 5px 10px; border-radius: 999px; white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(16,49,47,.25); pointer-events: none; transition: background .25s, color .25s;
+  }
+  .packet.req { background: var(--b-dark-green); color: var(--b-white); }
+  .packet.plain { background: var(--plain); color: var(--bad); border: 2px solid var(--plain-line); }
+  .packet.cipher { background: var(--cipher); color: #C7D3D1; border: 2px solid var(--b-dark-green); }
+  .packet.write { background: var(--b-yellow); color: var(--b-dark-green); }
+  .packet .k { color: var(--b-yellow); margin-right: 6px; }
+
+  #metrics {
+    position: absolute; left: 0; top: 612px; width: 1600px; height: 84px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 0 40px;
+  }
+  .tile {
+    background: var(--b-white); border-radius: 12px; padding: 10px 18px;
+    display: flex; flex-direction: column; justify-content: center; border-left: 8px solid var(--b-dark-green-30);
+  }
+  .tile .v { font-size: 28px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .tile .l { font-size: 14px; color: var(--b-dark-green-70); margin-top: 5px; display: flex; justify-content: space-between; gap: 8px; }
+  .tile .l code { font: 400 12px var(--mono); color: var(--b-dark-green-50); }
+  .tile.bad { border-left-color: var(--bad); }
+  .tile.bad .v { color: var(--bad); }
+  .tile.ok { border-left-color: var(--b-green); }
+
+  #caption {
+    position: absolute; left: 0; top: 708px; width: 1600px; height: 192px;
+    background: var(--b-dark-green); color: var(--b-white); padding: 22px 40px; display: flex; gap: 40px;
+  }
+  #caption .text { flex: 1 1 auto; min-width: 0; }
+  #caption .kicker { font: 500 14px var(--mono); color: var(--b-pink); letter-spacing: .5px; text-transform: uppercase; display: flex; gap: 14px; }
+  #caption .kicker .hint { color: var(--b-dark-green-50); text-transform: none; letter-spacing: 0; }
+  #caption h2 { margin: 6px 0 8px; font-size: 38px; font-weight: 700; letter-spacing: -.5px; }
+  #caption p { margin: 0; font-size: 21px; line-height: 1.4; color: var(--b-dark-green-10); max-width: 1080px; }
+  #caption p em { font-style: normal; color: var(--b-yellow); }
+  #caption code { font-family: var(--mono); font-size: .9em; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 4px; }
+  .card { background: var(--b-dark-green-90); border-radius: 12px; padding: 12px 14px; }
+  .card h3 { margin: 0 0 4px; font-size: 18px; }
+  .card p { font-size: 14.5px !important; line-height: 1.35 !important; }
+
+  .overlay { position: absolute; inset: 0; background: rgba(16,49,47,.82); display: none; align-items: center; justify-content: center; z-index: 20; }
+  .overlay.show { display: flex; }
+  .panel { background: var(--b-white); border-radius: 16px; padding: 28px 34px; width: 980px; max-height: 760px; overflow: auto; font-size: 18px; line-height: 1.5; }
+  .panel h3 { margin: 0 0 12px; font-size: 24px; }
+  .panel kbd { font: 500 14px var(--mono); background: var(--b-dark-green-10); border-radius: 6px; padding: 2px 8px; }
+  .panel ul { margin: 0; padding-left: 22px; }
+  .panel .keys { display: grid; grid-template-columns: 220px 1fr; gap: 8px 16px; }
+  #paused {
+    position: absolute; left: 40px; top: 84px; z-index: 6; display: none;
+    font: 700 13px var(--font); letter-spacing: .8px; text-transform: uppercase;
+    background: var(--b-yellow); border-radius: 999px; padding: 4px 12px;
+  }
+  #paused.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span class="wordmark">bitovi</span><span class="deck">Self-Hosted Temporal Workshop · Codec server and data residency</span></div>
+    <div class="nav">
+      <div class="dots" id="dots"></div>
+      <button class="iconbtn on" id="slowBtn" title="Half speed, on by default (D)">Slow</button>
+      <button class="iconbtn" id="helpBtn" title="Keyboard shortcuts (?)">?</button>
+    </div>
+  </header>
+
+  <div id="stage">
+    <svg id="wires"></svg>
+
+    <div class="zone ca" style="left:24px; top:22px; width:516px; height:508px"><span class="zone-label"><b>Canada</b> · card data must stay here</span></div>
+    <div class="zone us" style="left:570px; top:22px; width:540px; height:508px"><span class="zone-label"><b>United States</b> · Temporal</span><span class="verdict" id="verdict"></span></div>
+    <div class="zone op" style="left:1140px; top:22px; width:436px; height:508px"><span class="zone-label"><b>Operators</b> · debugging from anywhere</span></div>
+
+    <div class="box" id="appBox">
+      <h3>Your app<small>client</small></h3>
+      <div class="sub">Starts <b>ProcessPaymentWorkflow</b> with the customer's card</div>
+      <span class="badge" id="appCodec">no payload codec</span>
+      <div class="status" id="appStatus"></div>
+    </div>
+
+    <div class="box" id="wkBox">
+      <h3>Payments worker</h3>
+      <div class="sub">Polls <b>payments</b>. Runs the workflow and <b>ChargeCard</b></div>
+      <span class="badge" id="wkCodec">no payload codec</span>
+      <div class="status" id="wkStatus"></div>
+    </div>
+
+    <div class="box" id="keyBox">
+      <h3>AES-256 key<small>CODEC_AES_KEY</small></h3>
+      <div class="sub">From your KMS. Shared by the app, the worker and the codec server. Never sent to Temporal.</div>
+    </div>
+
+    <div class="box" id="codecBox">
+      <h3>Codec server<small>:8091</small></h3>
+      <div class="sub">HTTP app you run on a restricted network<br><code>POST /decode</code> · <code>/encode</code></div>
+      <div class="status" id="codecStatus"></div>
+    </div>
+
+    <div class="box" id="tBox">
+      <h3>Temporal Server<small>Frontend · History · Matching</small></h3>
+      <div class="sub">Stores payloads and hands them to workers. Never decodes them.</div>
+    </div>
+
+    <div class="box" id="dbBox">
+      <h3>Event history in Postgres<small>workflow payment-42</small></h3>
+      <div id="rows"></div>
+      <div class="dbfoot">Always readable, because they aren't payloads: <b>workflow ID, workflow and activity type, task queue, search attributes</b></div>
+    </div>
+
+    <div class="box" id="uiBox">
+      <h3>Temporal Web UI<small>operator's browser</small></h3>
+      <div class="sub">Codec Server endpoint: <b id="uiEndpoint">not set</b></div>
+      <div class="field"><label>Input</label><span class="val empty" id="uiIn">not loaded</span></div>
+      <div class="field"><label>Result</label><span class="val empty" id="uiRes">not loaded</span></div>
+      <div class="status" id="uiStatus"></div>
+    </div>
+
+    <div class="box" id="cliBox">
+      <h3>Temporal CLI<small>operator's terminal</small></h3>
+      <div class="term">$ temporal workflow show -w payment-42<span class="flag" id="cliFlag"></span>
+        <div class="out">Input: <span class="val empty" id="cliOut">-</span></div>
+      </div>
+    </div>
+  </div>
+  <div id="paused">Paused · P to resume</div>
+
+  <div id="metrics">
+    <div class="tile" id="mPlain"><div class="v">0</div><div class="l">Readable card data in the US database <code>payloads</code></div></div>
+    <div class="tile" id="mCipher"><div class="v">0</div><div class="l">Encrypted payloads stored <code>binary/encrypted</code></div></div>
+    <div class="tile" id="mRes"><div class="v">-</div><div class="l">Data residency <code>Canada → US</code></div></div>
+    <div class="tile" id="mDecode"><div class="v">0</div><div class="l">Codec server calls <code>/decode</code></div></div>
+  </div>
+
+  <div id="caption"></div>
+
+  <div class="overlay" id="help"><div class="panel">
+    <h3>Presenter keys</h3>
+    <div class="keys">
+      <span><kbd>→</kbd> <kbd>Space</kbd> <kbd>PgDn</kbd></span><span>Next step (finishes the current animation first)</span>
+      <span><kbd>←</kbd> <kbd>PgUp</kbd></span><span>Previous step</span>
+      <span><kbd>1</kbd>–<kbd>8</kbd></span><span>Jump to step</span>
+      <span><kbd>R</kbd></span><span>Replay the current step</span>
+      <span><kbd>P</kbd></span><span>Pause / resume</span>
+      <span><kbd>D</kbd></span><span>Toggle half speed (on by default)</span>
+      <span><kbd>N</kbd></span><span>Presenter notes for this step</span>
+      <span><kbd>F</kbd></span><span>Fullscreen</span>
+      <span><kbd>Esc</kbd></span><span>Close this panel</span>
+    </div>
+  </div></div>
+  <div class="overlay" id="notes"><div class="panel" id="notesBody"></div></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ------------------------------------------------------------------
+  // Boxes and wire routes (virtual px on the 1600x540 stage)
+  // ------------------------------------------------------------------
+  const BOX = {
+    app:   { el: "appBox",   x: 44,   y: 50,  w: 236, h: 170 },
+    wk:    { el: "wkBox",    x: 44,   y: 250, w: 236, h: 170 },
+    key:   { el: "keyBox",   x: 306,  y: 104, w: 214, h: 132 },
+    codec: { el: "codecBox", x: 306,  y: 360, w: 214, h: 140 },
+    t:     { el: "tBox",     x: 590,  y: 50,  w: 500, h: 92 },
+    db:    { el: "dbBox",    x: 590,  y: 172, w: 500, h: 328 },
+    ui:    { el: "uiBox",    x: 1160, y: 50,  w: 396, h: 236 },
+    cli:   { el: "cliBox",   x: 1160, y: 316, w: 396, h: 184 },
+  };
+  for (const k in BOX) {
+    const b = BOX[k], el = document.getElementById(b.el);
+    Object.assign(el.style, { left: b.x + "px", top: b.y + "px", width: b.w + "px", height: b.h + "px" });
+    b.node = el;
+  }
+
+  // Each route is a polyline, drawn in the gaps between zones so wires never cross a box.
+  const ROUTES = {
+    "app>t":    [[280, 76], [590, 76]],
+    "wk>t":     [[280, 335], [555, 335], [555, 124], [590, 124]],
+    "t>db":     [[840, 142], [840, 172]],
+    "ui>t":     [[1160, 96], [1090, 96]],
+    "cli>t":    [[1160, 408], [1125, 408], [1125, 124], [1090, 124]],
+    "ui>codec": [[1160, 250], [1148, 250], [1148, 515], [413, 515], [413, 500]],
+    "cli>codec":[[1160, 470], [1148, 470], [1148, 515], [413, 515], [413, 500]],
+  };
+  const KEY_ROUTES = [
+    [[306, 160], [280, 160]],
+    [[306, 210], [294, 210], [294, 300], [280, 300]],
+    [[413, 236], [413, 360]],
+  ];
+  function route(from, to) {
+    if (ROUTES[from + ">" + to]) return ROUTES[from + ">" + to];
+    return ROUTES[to + ">" + from].slice().reverse();
+  }
+  const pts = r => r.map(p => p.join(",")).join(" ");
+  const wires = document.getElementById("wires");
+  function drawWires(active) {
+    const act = active ? (ROUTES[active[0] + ">" + active[1]] || ROUTES[active[1] + ">" + active[0]]) : null;
+    let svg = Object.values(ROUTES).map(r =>
+      `<polyline points="${pts(r)}" fill="none" stroke="${r === act ? "#10312F" : "#B7C1C1"}" stroke-width="${r === act ? 4 : 2.5}" stroke-linejoin="round" stroke-linecap="round"/>`).join("");
+    if (S.codec) svg += KEY_ROUTES.map(r => `<polyline points="${pts(r)}" fill="none" stroke="#2A6562" stroke-width="2.5" stroke-dasharray="6 5"/>`).join("");
+    // mTLS marker on the app → Temporal wire: transport is encrypted either way.
+    svg += `<text x="435" y="66" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="13" fill="#586F6D">mTLS (encrypted in transit)</text>`;
+    wires.innerHTML = svg;
+  }
+
+  // ------------------------------------------------------------------
+  // Payload values
+  // ------------------------------------------------------------------
+  const PLAIN = {
+    in: '{"cardNumber":"4111 1111 1111 1111","cvv":"123"}',
+    act: '{"cardNumber":"4111 1111 1111 1111","cvv":"123"} 49.99',
+    res: '{"receiptId":"receipt-1111","last4":"1111"}',
+    out: '{"receiptId":"receipt-1111","status":"charged"}',
+  };
+  const CIPHER = {
+    in: "binary/encrypted · q8Zt0Fh2xQ9mVb3K…",
+    act: "binary/encrypted · 7Hq0aW2nLzR8eT1c…",
+    res: "binary/encrypted · Xc4P9sJd0kYw6Gm2…",
+    out: "binary/encrypted · mN3vB8qL2tR0fZ7a…",
+  };
+  const ROWS = [
+    { id: "in",  n: 1,  name: "WorkflowExecutionStarted",   f: "input" },
+    { id: "act", n: 5,  name: "ActivityTaskScheduled",      f: "ChargeCard input" },
+    { id: "res", n: 7,  name: "ActivityTaskCompleted",      f: "ChargeCard result" },
+    { id: "out", n: 11, name: "WorkflowExecutionCompleted", f: "result" },
+  ];
+  const short = s => s.length > 30 ? s.slice(0, 29) + "…" : s;
+
+  // ------------------------------------------------------------------
+  // State
+  // ------------------------------------------------------------------
+  let S;
+  function fresh() {
+    return {
+      codec: false, rows: {}, flash: null,
+      app: "", wk: "polling payments…", wkWarn: false,
+      ui: { endpoint: false, in: null, res: null, status: "" }, cli: { flag: false, out: null },
+      codecStatus: "", codecUsed: false, decodes: 0, alarmDb: false,
+    };
+  }
+
+  const rowsEl = document.getElementById("rows");
+  rowsEl.innerHTML = ROWS.map(r => `<div class="ev" id="row-${r.id}"><div class="top"><span class="n">${r.n}</span><span>${r.name}</span><span class="f">${r.f}</span></div><span class="val empty">not written yet</span></div>`).join("");
+
+  function setVal(el, kind, id, text) {
+    el.className = "val " + (kind || "empty");
+    el.textContent = kind === "plain" ? (text ?? PLAIN[id]) : kind === "cipher" ? CIPHER[id] : (text ?? "-");
+  }
+
+  function paint() {
+    for (const r of ROWS) {
+      const row = document.getElementById("row-" + r.id);
+      setVal(row.querySelector(".val"), S.rows[r.id], r.id, S.rows[r.id] ? undefined : "not written yet");
+      row.classList.toggle("flash", !!(S.flash && S.flash.includes(r.id)));
+    }
+    const badge = (id, on) => { const b = document.getElementById(id); b.className = "badge" + (on ? " on" : ""); b.textContent = on ? "codec: AES-256-GCM" : "no payload codec"; };
+    badge("appCodec", S.codec); badge("wkCodec", S.codec);
+    document.getElementById("appStatus").textContent = S.app;
+    const wk = document.getElementById("wkStatus");
+    wk.textContent = S.wk; wk.className = "status" + (S.wkWarn ? " warn" : "");
+    BOX.key.node.classList.toggle("idle", !S.codec);
+    BOX.codec.node.classList.toggle("idle", !S.codecUsed);
+    BOX.db.node.classList.toggle("alarm", S.alarmDb);
+    document.getElementById("codecStatus").textContent = S.codecStatus;
+
+    document.getElementById("uiEndpoint").textContent = S.ui.endpoint ? "http://localhost:8091" : "not set";
+    setVal(document.getElementById("uiIn"), S.ui.in, "in", S.ui.in ? undefined : "not loaded");
+    setVal(document.getElementById("uiRes"), S.ui.res, "out", S.ui.res ? undefined : "not loaded");
+    document.getElementById("uiStatus").textContent = S.ui.status;
+    document.getElementById("cliFlag").textContent = S.cli.flag ? " --codec-endpoint http://localhost:8091" : "";
+    setVal(document.getElementById("cliOut"), S.cli.out, "in");
+
+    const plain = Object.values(S.rows).filter(v => v === "plain").length;
+    const cipher = Object.values(S.rows).filter(v => v === "cipher").length;
+    tile("mPlain", plain, plain ? "bad" : (cipher ? "ok" : ""));
+    tile("mCipher", cipher, cipher ? "ok" : "");
+    tile("mRes", plain ? "✗ broken" : cipher ? "✓ only ciphertext" : "-", plain ? "bad" : cipher ? "ok" : "");
+    tile("mDecode", S.decodes, "");
+    const v = document.getElementById("verdict");
+    v.className = "verdict" + (plain ? " bad" : cipher ? " good" : "");
+    v.textContent = plain ? "Card data stored here" : cipher ? "Only ciphertext here" : "";
+    drawWires(cur && cur.hop.from ? [cur.hop.from, cur.hop.to] : null);
+  }
+  function tile(id, v, cls) {
+    const el = document.getElementById(id);
+    el.querySelector(".v").textContent = v;
+    el.className = "tile" + (cls ? " " + cls : "");
+  }
+
+  // ------------------------------------------------------------------
+  // Hops
+  // ------------------------------------------------------------------
+  // Travel: a payload moves along a route. Morph: it changes form inside a box.
+  const go = (from, to, kind, label, fx, dwell) => ({ from, to, kind, label, fx, dwell });
+  const morph = (at, fromKind, toKind, label1, label2, fx) => ({ morph: at, fromKind, toKind, label1, label2, fx });
+  const write = (id, kind) => go("t", "db", "write", "write event", s => { s.rows[id] = kind; s.flash = [id]; });
+  const pl = id => "data: " + short(PLAIN[id]);
+  const ci = id => "data: " + short(CIPHER[id]);
+
+  // Step 1: no codec. Plain text everywhere.
+  const PLAIN_RUN = [
+    go("app", "t", "plain", "start · " + pl("in"), s => { s.app = "sent the card number to Temporal"; }),
+    write("in", "plain"),
+    go("t", "wk", "plain", "workflow task · " + pl("in"), s => { s.wk = "has the card number"; s.flash = null; }),
+    go("wk", "t", "plain", "schedule ChargeCard · " + pl("act")),
+    write("act", "plain"),
+    go("t", "wk", "plain", "activity task · " + pl("act"), s => { s.wk = "charging the card…"; s.flash = null; }),
+    go("wk", "t", "plain", "ChargeCard result · " + pl("res")),
+    write("res", "plain"),
+    go("wk", "t", "plain", "complete · " + pl("out"), s => { s.wk = "done. Its memory is cleared."; s.flash = null; }),
+    write("out", "plain"),
+  ];
+
+  // Step 3: the app encodes before sending.
+  const ENCODE_START = [
+    { fx: s => { s.codec = true; s.app = "payload codec on"; s.wk = "payload codec on"; }, wait: 1.2 },
+    morph("app", "plain", "cipher", "encode · " + short(PLAIN.in), "→ " + short(CIPHER.in), s => { s.app = "encrypted in-process, before sending"; }),
+    go("app", "t", "cipher", "start · " + ci("in")),
+    write("in", "cipher"),
+  ];
+  // Step 4: only the worker can read it.
+  const WORKER_RUN = [
+    go("t", "wk", "cipher", "workflow task · " + ci("in"), s => { s.flash = null; }),
+    morph("wk", "cipher", "plain", "decode with key", "→ " + short(PLAIN.in), s => { s.wk = "decoded here, in Canada"; }),
+    morph("wk", "plain", "cipher", "encode ChargeCard input", "→ " + short(CIPHER.act)),
+    go("wk", "t", "cipher", "schedule ChargeCard · " + ci("act")),
+    write("act", "cipher"),
+    go("t", "wk", "cipher", "activity task · " + ci("act"), s => { s.flash = null; }),
+    morph("wk", "cipher", "plain", "decode with key", "→ card 4111…", s => { s.wk = "charging the card, in Canada…"; }),
+    morph("wk", "plain", "cipher", "encode the receipt", "→ " + short(CIPHER.res)),
+    go("wk", "t", "cipher", "ChargeCard result · " + ci("res")),
+    write("res", "cipher"),
+    go("wk", "t", "cipher", "complete · " + ci("out"), s => { s.wk = "done. Only ciphertext ever left Canada."; s.flash = null; }),
+    write("out", "cipher"),
+  ];
+  // Step 5: operators only see ciphertext.
+  const OPS_BLIND = [
+    go("ui", "t", "req", "load history for payment-42", s => { s.ui.status = ""; }),
+    go("t", "ui", "cipher", "history · " + ci("in"), s => { s.ui.in = "cipher"; s.ui.res = "cipher"; s.ui.status = "can't read it, can't debug it"; }),
+    go("cli", "t", "req", "workflow show payment-42"),
+    go("t", "cli", "cipher", ci("in"), s => { s.cli.out = "cipher"; }),
+  ];
+  // Step 6: the codec server decodes for display.
+  const OPS_DECODE = [
+    { fx: s => { s.ui.endpoint = true; s.cli.flag = true; s.codecUsed = true; s.ui.status = "codec endpoint saved"; }, wait: 1.2 },
+    go("ui", "codec", "cipher", "POST /decode · " + ci("in"), s => { s.decodes++; s.codecStatus = "decoding for the Web UI…"; }),
+    morph("codec", "cipher", "plain", "decode with key", "→ " + short(PLAIN.in)),
+    go("codec", "ui", "plain", "decoded · " + pl("in"), s => { s.ui.in = "plain"; s.ui.res = "plain"; s.ui.status = "decoded in this browser only"; s.codecStatus = ""; }),
+    go("cli", "codec", "cipher", "POST /decode · " + ci("in"), s => { s.decodes++; s.codecStatus = "decoding for the CLI…"; }),
+    morph("codec", "cipher", "plain", "decode with key", "→ " + short(PLAIN.in)),
+    go("codec", "cli", "plain", "decoded · " + pl("in"), s => { s.cli.out = "plain"; s.codecStatus = "Temporal saw none of it"; }),
+  ];
+
+  // ------------------------------------------------------------------
+  // Story
+  // ------------------------------------------------------------------
+  const STEPS = [
+    {
+      kicker: "1 · No codec",
+      title: "Where does the card number end up?",
+      body: "A customer in Canada pays by card. The connection to Temporal uses mTLS, so the wire is safe. But Temporal <em>stores every input and result</em> in its database, in the United States.",
+      notes: [
+        "Workflow and activity inputs and results are stored as payloads in the event history. That's how replay works (see the request-flow visual).",
+        "Same workflow as Exercise 8: ProcessPaymentWorkflow → ChargeCardActivity.",
+        "\"The worker once it's done is going to wash that data away… the only place that this lives in is in the Temporal database.\"",
+      ],
+      prior: [], hops: PLAIN_RUN,
+    },
+    {
+      kicker: "2 · The problem",
+      title: "mTLS protects the wire, not the database",
+      body: "The card number now sits in plain text in a US database. Anyone with database access, a backup or a replica can read it. For data that must stay in Canada, <em>residency is already broken</em>.",
+      notes: [
+        "Knowledge check from the deck: \"What problem does the codec server solve that encryption alone does not?\"",
+        "Answer: mTLS only encrypts data in flight. Once it arrives, it's decrypted and stored as plain text.",
+        "Also visible to: anyone with Web UI access, archival in S3, and replication to other clusters.",
+      ],
+      prior: [PLAIN_RUN], hops: [{ fx: s => { s.alarmDb = true; }, wait: 0.2 }],
+    },
+    {
+      kicker: "3 · Encrypt before it leaves",
+      title: "The app encrypts the payload before sending it",
+      body: "Add a <em>payload codec</em> to the SDK's data converter in your app and worker. It encrypts each payload in-process, with a key from your KMS. Temporal receives and stores only ciphertext.",
+      notes: [
+        "This is not the codec server. It's the same codec code, compiled into your app and worker: converter.NewCodecDataConverter(GetDefaultDataConverter(), aesCodec).",
+        "No network call: encryption happens inside the process before the gRPC call to Temporal.",
+        "Repo: codec-demo/codec/aesgcm.go (AES-256-GCM, encoding metadata binary/encrypted).",
+        "Correction to the whiteboard version: the user's data doesn't \"go through a codec server\". The SDK encodes it.",
+      ],
+      prior: [], hops: ENCODE_START,
+    },
+    {
+      kicker: "4 · Only your worker can read it",
+      title: "Decrypted only inside your worker, in Canada",
+      body: "Temporal hands the ciphertext to the worker. The worker decrypts it with the same key, charges the card, and encrypts the result before it goes back. <em>Only ciphertext ever leaves Canada.</em>",
+      notes: [
+        "\"From the compliance and data perspective… this is not actually data. It's just a jumbled mess of nothing.\"",
+        "Temporal still orchestrates everything: retries, timeouts, replay. It just can't read the payloads.",
+        "Cost: CPU for encrypt/decrypt on every payload, plus key distribution to every worker.",
+      ],
+      prior: [ENCODE_START], hops: WORKER_RUN,
+    },
+    {
+      kicker: "5 · The catch",
+      title: "Now your operators see ciphertext too",
+      body: "The Web UI and the CLI get the same encrypted payloads Temporal stores. Debugging a failed payment by reading its input <em>isn't possible any more</em>.",
+      notes: [
+        "Try it in Exercise 8: temporal workflow show without --codec-endpoint shows base64 ciphertext.",
+        "Teams often turn encryption off at this point. The codec server is what lets you keep it.",
+      ],
+      prior: [ENCODE_START, WORKER_RUN], hops: OPS_BLIND,
+    },
+    {
+      kicker: "6 · The codec server",
+      title: "The codec server decodes for display",
+      body: "Point the Web UI and CLI at your codec server. The <em>operator's browser</em> sends ciphertext straight to it and gets plain text back. Temporal, and the Web UI's own server, never see the decoded data.",
+      notes: [
+        "Web UI: namespace settings → Codec Server endpoint. CLI: --codec-endpoint.",
+        "The browser calls the codec server directly, which is why it needs CORS (Content-Type, X-Namespace, Authorization).",
+        "Phil: \"The decoding happens entirely on the client side. Neither the Temporal service nor the Web UI server are ever aware of the data in the decrypted state.\"",
+        "In Exercise 8 the CLI also uses /encode: with --codec-endpoint, workflow start encrypts its --input through the codec server.",
+        "Production: put it behind auth (JWT), a restricted network or VPN, and HTTPS. The workshop's codec server has no auth on purpose.",
+      ],
+      prior: [ENCODE_START, WORKER_RUN, OPS_BLIND], hops: OPS_DECODE,
+    },
+    {
+      kicker: "7 · Two places, one codec",
+      cards: [
+        ["In your app and worker", "The SDK payload codec encrypts and decrypts in-process. This is what keeps data out of Temporal. No codec server involved."],
+        ["In the codec server", "The same codec behind POST /decode and /encode, for the Web UI and CLI only. It's for people, not for workflows."],
+        ["Shared key", "App, worker and codec server need the same key, usually from a KMS. Lose the key and the history is unreadable."],
+        ["Who can decode?", "Whoever can reach the codec server. Gate it with auth and network rules; that's your access control for PII."],
+      ],
+      notes: [
+        "If a worker runs without the codec, it can't read encrypted inputs. Roll the codec out to every worker on a task queue at once.",
+        "The codec in the repo passes through payloads it didn't encrypt, so mixing old plain-text history with new encrypted history keeps working.",
+      ],
+      prior: [ENCODE_START, WORKER_RUN, OPS_BLIND, OPS_DECODE], hops: [],
+    },
+    {
+      kicker: "8 · What it doesn't cover",
+      cards: [
+        ["Encrypted", "Payloads: workflow and activity inputs and results, plus signal, query and update arguments."],
+        ["Never encrypted", "Workflow ID, workflow and activity type names, task queue names, and search attribute values. Keep PII out of them."],
+        ["Off by default", "Failure messages and stack traces. Enable failure encoding in the SDK if they can contain PII. Check memo and headers for your SDK."],
+        ["Still needed", "mTLS for transport, and auth on the Web UI and codec server. The codec covers data at rest, not access."],
+      ],
+      notes: [
+        "Temporal docs: \"Search Attribute values are stored unencrypted in the Visibility store and are not processed by a custom Payload Codec.\"",
+        "Temporal docs: \"Failure messages and call stacks are not encoded as codec-capable Payloads by default.\"",
+        "Large payloads: External Storage (claim check) keeps the data in your own S3 and stores only a reference in Temporal; the codec server's /download serves it to the UI.",
+      ],
+      prior: [ENCODE_START, WORKER_RUN, OPS_BLIND, OPS_DECODE], hops: [],
+    },
+  ];
+
+  // ------------------------------------------------------------------
+  // Player
+  // ------------------------------------------------------------------
+  const stage = document.getElementById("stage");
+  let step = 0, queue = [], cur = null, paused = false, slow = true, packetEl = null;
+
+  function centerOf(k) { const b = BOX[k]; return [b.x + b.w / 2, b.y + b.h - 26]; }
+
+  function goStep(i) {
+    step = Math.max(0, Math.min(STEPS.length - 1, i));
+    const s = STEPS[step];
+    S = fresh();
+    s.prior.forEach(hops => hops.forEach(h => h.fx && h.fx(S, 1)));
+    S.flash = null;
+    queue = s.hops.slice(); cur = null;
+    clearPacket();
+    paint();
+    renderCaption();
+    [...document.getElementById("dots").children].forEach((d, j) => d.classList.toggle("on", j === step));
+    history.replaceState(null, "", "#step" + (step + 1));
+    if (document.getElementById("notes").classList.contains("show")) showNotes();
+  }
+  function clearPacket() {
+    if (packetEl) { packetEl.remove(); packetEl = null; }
+    for (const k in BOX) BOX[k].node.classList.remove("lit");
+  }
+  function finishStep() {
+    if (cur && cur.hop.fx && !cur.landed) cur.hop.fx(S, 1);
+    queue.forEach(h => h.fx && h.fx(S, 1));
+    queue = []; cur = null;
+    clearPacket(); paint(); renderCaption();
+  }
+  const busy = () => !!cur || queue.length > 0;
+
+  function makePacket(kind, label) {
+    packetEl = document.createElement("div");
+    packetEl.className = "packet " + kind;
+    packetEl.textContent = label;
+    stage.appendChild(packetEl);
+  }
+
+  function startHop(h) {
+    cur = { hop: h, t: 0, landed: false };
+    if (h.from) {
+      const r = route(h.from, h.to);
+      const segs = []; let len = 0;
+      for (let i = 1; i < r.length; i++) { const d = Math.hypot(r[i][0] - r[i - 1][0], r[i][1] - r[i - 1][1]); segs.push(d); len += d; }
+      Object.assign(cur, { r, segs, len, dur: 0.5 + len / 650 });
+      makePacket(h.kind, h.label);
+      BOX[h.from].node.classList.add("lit");
+      paint();
+    } else if (h.morph) {
+      const [x, y] = centerOf(h.morph);
+      makePacket(h.fromKind, h.label1);
+      packetEl.style.left = x + "px"; packetEl.style.top = y + "px";
+      cur.dur = 1.6;
+      BOX[h.morph].node.classList.add("lit");
+    }
+  }
+  function along(c, p) {
+    let d = p * c.len;
+    for (let i = 0; i < c.segs.length; i++) {
+      if (d <= c.segs[i] || i === c.segs.length - 1) {
+        const f = c.segs[i] ? Math.min(1, d / c.segs[i]) : 1, a = c.r[i], b = c.r[i + 1];
+        return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+      }
+      d -= c.segs[i];
+    }
+  }
+
+  function update(dt) {
+    if (!cur && queue.length) startHop(queue.shift());
+    if (!cur) return;
+    const h = cur.hop;
+    cur.t += dt;
+    if (h.from) {
+      const p = Math.min(1, cur.t / cur.dur), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      const [x, y] = along(cur, e);
+      packetEl.style.left = x + "px"; packetEl.style.top = y + "px";
+      if (p >= 1 && !cur.landed) {
+        cur.landed = true;
+        BOX[h.from].node.classList.remove("lit");
+        BOX[h.to].node.classList.add("lit");
+        if (h.fx) h.fx(S, 1);
+        paint();
+      }
+      if (cur.t >= cur.dur + (h.dwell ?? 0.25)) end();
+    } else if (h.morph) {
+      if (cur.t >= cur.dur / 2 && !cur.swapped) {
+        cur.swapped = true;
+        packetEl.className = "packet " + h.toKind;
+        packetEl.textContent = h.label2;
+      }
+      if (cur.t >= cur.dur && !cur.landed) { cur.landed = true; if (h.fx) h.fx(S, 1); paint(); }
+      if (cur.t >= cur.dur + 0.4) end();
+    } else {
+      if (!cur.landed) { cur.landed = true; h.fx(S, 1); paint(); }
+      if (cur.t >= (h.wait ?? 0.4)) end();
+    }
+  }
+  function end() {
+    clearPacket(); cur = null; paint();
+    if (!busy()) renderCaption();
+  }
+
+  function renderCaption() {
+    const s = STEPS[step], cap = document.getElementById("caption");
+    const hint = busy() ? "" : (step < STEPS.length - 1 ? "<span class=\"hint\">→ next</span>" : "");
+    if (s.cards) {
+      cap.innerHTML = `<div class="text"><div class="kicker">${s.kicker}${hint}</div>
+        <div class="cards">${s.cards.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join("")}</div></div>`;
+      return;
+    }
+    cap.innerHTML = `<div class="text"><div class="kicker">${s.kicker}${hint}</div><h2>${s.title}</h2><p>${s.body}</p></div>`;
+  }
+
+  // ------------------------------------------------------------------
+  // Shell
+  // ------------------------------------------------------------------
+  const app = document.getElementById("app");
+  const dotsEl = document.getElementById("dots");
+  STEPS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "dot"; b.textContent = i + 1; b.title = s.title || s.kicker;
+    b.onclick = () => goStep(i);
+    dotsEl.appendChild(b);
+  });
+
+  function next() { if (busy()) finishStep(); else goStep(step + 1); }
+  function togglePause() { paused = !paused; document.getElementById("paused").classList.toggle("show", paused); }
+  function toggleSlow() { slow = !slow; document.getElementById("slowBtn").classList.toggle("on", slow); }
+  document.getElementById("slowBtn").onclick = toggleSlow;
+
+  function showNotes() {
+    const s = STEPS[step];
+    document.getElementById("notesBody").innerHTML = `<h3>Notes · ${s.kicker}</h3><ul>${s.notes.map(n => `<li>${n}</li>`).join("")}</ul>`;
+    document.getElementById("notes").classList.add("show");
+  }
+  const closeOverlays = () => document.querySelectorAll(".overlay").forEach(o => o.classList.remove("show"));
+  document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", closeOverlays));
+  document.getElementById("helpBtn").onclick = () => document.getElementById("help").classList.add("show");
+
+  document.addEventListener("keydown", e => {
+    const k = e.key;
+    if (k === "Escape") return closeOverlays();
+    if (k === "?") return document.getElementById("help").classList.add("show");
+    if (k === "n" || k === "N") { const n = document.getElementById("notes"); return n.classList.contains("show") ? closeOverlays() : showNotes(); }
+    if (k === "f" || k === "F") return document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
+    if (k === "p" || k === "P") return togglePause();
+    if (k === "d" || k === "D") return toggleSlow();
+    if (k === "r" || k === "R") return goStep(step);
+    if (k === "ArrowRight" || k === "PageDown" || k === " ") { e.preventDefault(); next(); }
+    else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); goStep(step - 1); }
+    else if (k === "Home") goStep(0);
+    else if (/^[1-8]$/.test(k)) goStep(Number(k) - 1);
+  });
+
+  function fit() {
+    const s = Math.min(innerWidth / 1600, innerHeight / 900);
+    app.style.transform = `translate(${(innerWidth - 1600 * s) / 2}px, ${(innerHeight - 900 * s) / 2}px) scale(${s})`;
+  }
+  addEventListener("resize", fit);
+  fit();
+
+  // #step3 opens a step (#step=3 also works locally); #ff=N fast-forwards N seconds (handy for screenshots).
+  const m = location.hash.match(/step=?(\d)/), ff = location.hash.match(/ff=(\d+)/);
+  goStep(m ? Number(m[1]) - 1 : 0);
+  if (ff) for (let i = 0; i < Number(ff[1]) * 60; i++) update(1 / 60);
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (!paused) update(slow ? dt / 2 : dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

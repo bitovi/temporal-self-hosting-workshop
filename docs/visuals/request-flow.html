@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temporal Request Flow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Bitovi Brand Identity Guidelines v1.1 palette; Roboto is the guideline's
+     Google alternate for Garnett / Acumin Pro. Matches task-queue-separation.html. */
+  :root {
+    --b-red: #F3684C;
+    --b-dark-green: #10312F;
+    --b-dark-green-90: #284644;
+    --b-dark-green-70: #586F6D;
+    --b-dark-green-50: #879897;
+    --b-dark-green-30: #B7C1C1;
+    --b-dark-green-10: #E7EAEA;
+    --b-off-white: #EDEDED;
+    --b-white: #FFFFFF;
+    --b-pink: #FFA593;
+    --b-pink-ext: #FBC9BF;
+    --b-yellow: #FFD029;
+    --b-yellow-ext: #FFF2C2;
+    --b-light-blue: #A9C7EA;
+    --b-light-blue-ext: #D2E2F4;
+    --b-green: #2A6562;
+    --b-red-tint: #FDE9E5;
+    --bad: #C8402A;
+
+    /* One tint per boundary: your code / Temporal Server / persistence */
+    --zone-code-bg: #EEF4FB;   --zone-code-line: var(--b-light-blue);
+    --zone-temporal-bg: #E3F6F5; --zone-temporal-line: #96DDD8;
+    --zone-db-bg: #FFF8DC;     --zone-db-line: #FFE68F;
+
+    --font: "Roboto", "Helvetica Neue", Arial, sans-serif;
+    --mono: "Roboto Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--b-dark-green); color: var(--b-dark-green); font-family: var(--font); overflow: hidden; }
+  /* Fixed 1600x900 canvas scaled to fit any screen. */
+  #app { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; transform-origin: 0 0; background: var(--b-off-white); overflow: hidden; }
+
+  /* ---------- header ---------- */
+  header {
+    position: absolute; left: 0; top: 0; width: 1600px; height: 72px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 40px; background: var(--b-white); border-bottom: 1px solid var(--b-dark-green-10);
+  }
+  .brand { display: flex; align-items: baseline; gap: 16px; }
+  .brand .wordmark { font-weight: 900; font-size: 26px; color: var(--b-red); letter-spacing: -0.5px; }
+  .brand .deck { font-size: 18px; color: var(--b-dark-green-70); }
+  .nav { display: flex; align-items: center; gap: 16px; }
+  .dots { display: flex; gap: 8px; }
+  .dot {
+    width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--b-dark-green-30);
+    background: transparent; color: var(--b-dark-green-70); font: 500 13px var(--font); cursor: pointer; padding: 0;
+  }
+  .dot.on { background: var(--b-dark-green); border-color: var(--b-dark-green); color: var(--b-white); }
+  .iconbtn {
+    border: 2px solid var(--b-dark-green-30); background: transparent; border-radius: 999px;
+    font: 500 15px var(--font); color: var(--b-dark-green); padding: 6px 14px; cursor: pointer;
+  }
+  .iconbtn.on { background: var(--b-dark-green); border-color: var(--b-dark-green); color: var(--b-white); }
+
+  /* ---------- stage ---------- */
+  #stage { position: absolute; left: 0; top: 72px; width: 1600px; height: 540px; }
+  #wires { position: absolute; inset: 0; z-index: 1; width: 1600px; height: 540px; pointer-events: none; }
+  .region { position: absolute; z-index: 0; border: 2px solid; border-radius: 18px; }
+  .region.code { background: var(--zone-code-bg); border-color: var(--zone-code-line); }
+  .region.temporal { background: var(--zone-temporal-bg); border-color: var(--zone-temporal-line); }
+  .region.db { background: var(--zone-db-bg); border-color: var(--zone-db-line); }
+  .region-label {
+    position: absolute; top: -14px; left: 16px; padding: 2px 10px; border-radius: 999px;
+    font: 500 14px var(--mono); color: var(--b-dark-green-90); white-space: nowrap;
+  }
+  .region.code .region-label { background: var(--zone-code-line); }
+  .region.temporal .region-label { background: var(--zone-temporal-line); }
+  .region.db .region-label { background: var(--zone-db-line); }
+  .region-label b { color: var(--b-dark-green); font-weight: 500; }
+
+  .box {
+    position: absolute; z-index: 2; background: var(--b-white); border: 2px solid var(--b-dark-green); border-radius: 14px;
+    padding: 10px 14px; transition: box-shadow .25s, border-color .25s, background .25s;
+  }
+  .box h3 { margin: 0; font-size: 19px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .box h3 small { font: 400 13px var(--mono); color: var(--b-dark-green-70); }
+  .box .sub { font-size: 14px; color: var(--b-dark-green-70); margin-top: 2px; }
+  .box.lit { box-shadow: 0 0 0 5px var(--b-yellow); }
+  .box.crashed { border-color: var(--bad); background: var(--b-red-tint); }
+  .box.crashed h3 { color: var(--bad); }
+  .box.alert-crash { animation: pulse-crash 1.1s ease-in-out infinite; }
+  .box.alert-start { border-color: var(--b-dark-green); animation: pulse-start 1.1s ease-in-out infinite; }
+  @keyframes pulse-crash { 0%, 100% { box-shadow: 0 0 0 4px rgba(200,64,42,.9); } 50% { box-shadow: 0 0 0 14px rgba(200,64,42,.25); } }
+  @keyframes pulse-start { 0%, 100% { box-shadow: 0 0 0 4px var(--b-yellow); } 50% { box-shadow: 0 0 0 14px rgba(255,208,41,.35); } }
+  .flag {
+    position: absolute; top: -14px; right: 12px; padding: 3px 10px; border-radius: 999px; display: none;
+    font: 700 12px var(--font); letter-spacing: .6px; text-transform: uppercase;
+  }
+  .alert-crash > .flag { display: block; background: var(--bad); color: var(--b-white); }
+  .alert-start > .flag { display: block; background: var(--b-yellow); color: var(--b-dark-green); }
+  @media (prefers-reduced-motion: reduce) { .box.alert-crash, .box.alert-start { animation: none; box-shadow: 0 0 0 6px var(--b-yellow); } }
+
+  #fe { display: flex; flex-direction: column; justify-content: center; text-align: center; }
+  #fe h3 { justify-content: center; }
+  #fe .sub { margin-top: 8px; line-height: 1.35; }
+
+  .status { margin-top: 6px; font: 500 14px var(--mono); color: var(--b-green); min-height: 20px; }
+  .status.warn { color: var(--bad); }
+  .code {
+    margin-top: 8px; background: var(--b-dark-green-10); border-radius: 8px; padding: 6px 0;
+    font: 400 12px/1.5 var(--mono); color: var(--b-dark-green-90);
+  }
+  .code div { padding: 0 10px; white-space: pre; border-left: 4px solid transparent; }
+  .code div.on { background: var(--b-yellow-ext); border-left-color: var(--b-yellow); color: var(--b-dark-green); }
+  .bar { margin-top: 6px; height: 10px; border-radius: 999px; background: var(--b-dark-green-10); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: var(--b-pink); }
+
+  .ms { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ms div { background: var(--b-dark-green-10); border-radius: 8px; padding: 6px 10px; font-size: 13px; color: var(--b-dark-green-70); }
+  .ms div b { display: block; font: 500 15px var(--mono); color: var(--b-dark-green); margin-top: 2px; }
+  .ms div.flash { background: var(--b-yellow-ext); }
+
+  .lane { margin-top: 10px; }
+  .lane label { font: 400 13px var(--mono); color: var(--b-dark-green-70); }
+  .lane label b { color: var(--b-dark-green); font-weight: 500; }
+  .track {
+    margin-top: 4px; height: 46px; border: 2px dashed var(--b-dark-green-50); border-radius: 10px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 0 8px;
+  }
+  .token {
+    font: 700 13px var(--font); padding: 6px 10px; border-radius: 8px; border: 2px solid rgba(16,49,47,.25);
+    animation: drop .35s ease-out;
+  }
+  .token.wt { background: var(--b-light-blue); }
+  .token.at { background: var(--b-pink); }
+  @keyframes drop { from { transform: translateY(-10px); opacity: 0; } }
+
+  #db .events { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .ev {
+    display: flex; gap: 10px; align-items: center; height: 29px; padding: 0 10px; border-radius: 7px;
+    font: 400 14px var(--mono); color: var(--b-dark-green-30); border: 1.5px dashed var(--b-dark-green-10);
+  }
+  .ev .n { width: 22px; text-align: right; font-variant-numeric: tabular-nums; }
+  .ev.on { color: var(--b-dark-green); background: var(--b-dark-green-10); border: 1.5px solid transparent; }
+  .ev.on .n { color: var(--b-dark-green-70); }
+  .ev.pending { color: var(--b-dark-green-70); border-color: var(--b-dark-green-50); background: transparent; }
+  .ev.pending::after { content: "held until it finishes"; margin-left: auto; font-size: 11px; color: var(--b-dark-green-50); }
+  .ev.flash { background: var(--b-yellow-ext); }
+  .ev.read { box-shadow: inset 4px 0 0 var(--b-green); }
+
+  .packet {
+    position: absolute; left: 0; top: 0; z-index: 5; transform: translate(-50%, -50%);
+    font: 500 13px var(--mono); padding: 5px 10px; border-radius: 999px; white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(16,49,47,.25); pointer-events: none;
+  }
+  .packet.req { background: var(--b-dark-green); color: var(--b-white); }
+  .packet.resp { background: var(--b-white); color: var(--b-dark-green); border: 2px solid var(--b-dark-green); }
+  .packet.task { background: var(--b-light-blue); color: var(--b-dark-green); border: 2px solid var(--b-dark-green); }
+  .packet.atask { background: var(--b-pink); color: var(--b-dark-green); border: 2px solid var(--b-dark-green); }
+  .packet.write { background: var(--b-yellow); color: var(--b-dark-green); }
+  .packet.read { background: var(--b-green); color: var(--b-white); }
+
+  /* ---------- metrics ---------- */
+  #metrics {
+    position: absolute; left: 0; top: 612px; width: 1600px; height: 84px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 0 40px;
+  }
+  .tile {
+    background: var(--b-white); border-radius: 12px; padding: 10px 18px;
+    display: flex; flex-direction: column; justify-content: center; border-left: 8px solid var(--b-dark-green-30);
+  }
+  .tile .v { font-size: 30px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .tile .l { font-size: 14px; color: var(--b-dark-green-70); margin-top: 4px; display: flex; justify-content: space-between; gap: 8px; }
+  .tile .l code { font: 400 12px var(--mono); color: var(--b-dark-green-50); }
+  .tile.hl { border-left-color: var(--b-yellow); }
+  .tile.ok { border-left-color: var(--b-green); }
+
+  /* ---------- caption ---------- */
+  #caption {
+    position: absolute; left: 0; top: 708px; width: 1600px; height: 192px;
+    background: var(--b-dark-green); color: var(--b-white); padding: 22px 40px; display: flex; gap: 40px;
+  }
+  #caption .text { flex: 1 1 auto; min-width: 0; }
+  #caption .kicker { font: 500 14px var(--mono); color: var(--b-pink); letter-spacing: .5px; text-transform: uppercase; display: flex; gap: 14px; }
+  #caption .kicker .hint { color: var(--b-dark-green-50); text-transform: none; letter-spacing: 0; }
+  #caption h2 { margin: 6px 0 8px; font-size: 38px; font-weight: 700; letter-spacing: -.5px; }
+  #caption p { margin: 0; font-size: 21px; line-height: 1.4; color: var(--b-dark-green-10); max-width: 1060px; }
+  #caption p em { font-style: normal; color: var(--b-yellow); }
+  #caption code { font-family: var(--mono); font-size: .9em; }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 4px; }
+  .card { background: var(--b-dark-green-90); border-radius: 12px; padding: 12px 14px; }
+  .card h3 { margin: 0 0 4px; font-size: 18px; }
+  .card p { font-size: 15px !important; line-height: 1.35 !important; }
+
+  /* ---------- overlays ---------- */
+  .overlay { position: absolute; inset: 0; background: rgba(16,49,47,.82); display: none; align-items: center; justify-content: center; z-index: 20; }
+  .overlay.show { display: flex; }
+  .panel { background: var(--b-white); border-radius: 16px; padding: 28px 34px; width: 980px; max-height: 760px; overflow: auto; font-size: 18px; line-height: 1.5; }
+  .panel h3 { margin: 0 0 12px; font-size: 24px; }
+  .panel kbd { font: 500 14px var(--mono); background: var(--b-dark-green-10); border-radius: 6px; padding: 2px 8px; }
+  .panel ul { margin: 0; padding-left: 22px; }
+  .panel .keys { display: grid; grid-template-columns: 220px 1fr; gap: 8px 16px; }
+  #paused {
+    position: absolute; left: 40px; top: 84px; z-index: 6; display: none;
+    font: 700 13px var(--font); letter-spacing: .8px; text-transform: uppercase;
+    background: var(--b-yellow); border-radius: 999px; padding: 4px 12px;
+  }
+  #paused.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span class="wordmark">bitovi</span><span class="deck">Self-Hosted Temporal Workshop · How a request flows through Temporal</span></div>
+    <div class="nav">
+      <div class="dots" id="dots"></div>
+      <button class="iconbtn on" id="slowBtn" title="Half speed, on by default (D)">Slow</button>
+      <button class="iconbtn" id="helpBtn" title="Keyboard shortcuts (?)">?</button>
+    </div>
+  </header>
+
+  <div id="stage">
+    <svg id="wires"></svg>
+
+    <div class="region code" style="left:24px; top:22px; width:330px; height:500px"><span class="region-label"><b>Your code</b> · you run it</span></div>
+    <div class="region temporal" style="left:384px; top:22px; width:632px; height:500px"><span class="region-label"><b>Temporal Server</b> · never runs your code</span></div>
+    <div class="region db" style="left:1046px; top:22px; width:530px; height:500px"><span class="region-label"><b>Persistence</b> · Postgres</span></div>
+
+    <div class="box" id="app-box">
+      <h3>Your app<small>client</small></h3>
+      <div class="status" id="appStatus"></div>
+    </div>
+
+    <div class="box" id="wfw">
+      <span class="flag" id="wfFlag"></span>
+      <h3><span id="wfwName">Workflow worker</span><small>polls orders</small></h3>
+      <div class="code" id="wfCode">
+        <div>func OrderWorkflow(ctx, o) error {</div>
+        <div>  ExecuteActivity(ChargeCard, o)</div>
+        <div>  return nil</div>
+        <div>}</div>
+      </div>
+      <div class="status" id="wfStatus"></div>
+    </div>
+
+    <div class="box" id="aw">
+      <h3>Activity worker<small>polls payments</small></h3>
+      <div class="code"><div>func ChargeCard(ctx, o)</div><div>    (Receipt, error)</div></div>
+      <div class="bar"><i id="actBar"></i></div>
+      <div class="status" id="actStatus"></div>
+    </div>
+
+    <div class="box" id="fe">
+      <h3>Frontend</h3>
+      <div class="sub">gRPC gateway<br>the only door in<br><br>auth · rate limits · routing</div>
+    </div>
+
+    <div class="box" id="hist">
+      <h3>History<small id="shard">owns the shard for order-123</small></h3>
+      <div class="sub">Workflow state and event history</div>
+      <div class="ms">
+        <div id="msWt">Workflow task<b>-</b></div>
+        <div id="msAt">Activity task<b>-</b></div>
+      </div>
+    </div>
+
+    <div class="box" id="match">
+      <h3>Matching<small>task queues</small></h3>
+      <div class="lane"><label>task queue <b>orders</b> · workflow tasks</label><div class="track" id="laneOrders"></div></div>
+      <div class="lane"><label>task queue <b>payments</b> · activity tasks</label><div class="track" id="lanePayments"></div></div>
+    </div>
+
+    <div class="box" id="db">
+      <h3>Event history<small>workflow order-123</small></h3>
+      <div class="events" id="events"></div>
+    </div>
+  </div>
+  <div id="paused">Paused · P to resume</div>
+
+  <div id="metrics">
+    <div class="tile" id="mEvents"><div class="v">0</div><div class="l">Events in history <code>Hello World = 11</code></div></div>
+    <div class="tile" id="mWrites"><div class="v">0</div><div class="l">Writes by History <code>UpdateWorkflowExecution</code></div></div>
+    <div class="tile" id="mTasks"><div class="v">0</div><div class="l">Tasks waiting in Matching <code>task queues</code></div></div>
+    <div class="tile ok" id="mCode"><div class="v">0 lines</div><div class="l">Your code run by Temporal <code>always zero</code></div></div>
+  </div>
+
+  <div id="caption"></div>
+
+  <div class="overlay" id="help"><div class="panel">
+    <h3>Presenter keys</h3>
+    <div class="keys">
+      <span><kbd>→</kbd> <kbd>Space</kbd> <kbd>PgDn</kbd></span><span>Next step (finishes the current animation first)</span>
+      <span><kbd>←</kbd> <kbd>PgUp</kbd></span><span>Previous step</span>
+      <span><kbd>1</kbd>–<kbd>9</kbd></span><span>Jump to step</span>
+      <span><kbd>R</kbd></span><span>Replay the current step</span>
+      <span><kbd>P</kbd></span><span>Pause / resume</span>
+      <span><kbd>D</kbd></span><span>Toggle half speed (on by default)</span>
+      <span><kbd>N</kbd></span><span>Presenter notes for this step</span>
+      <span><kbd>F</kbd></span><span>Fullscreen</span>
+      <span><kbd>Esc</kbd></span><span>Close this panel</span>
+    </div>
+  </div></div>
+  <div class="overlay" id="notes"><div class="panel" id="notesBody"></div></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ------------------------------------------------------------------
+  // Boxes (virtual px on the 1600x540 stage)
+  // ------------------------------------------------------------------
+  const BOX = {
+    app:   { el: "app-box", x: 44,   y: 46,  w: 290, h: 84 },
+    wfw:   { el: "wfw",     x: 44,   y: 150, w: 290, h: 194 },
+    aw:    { el: "aw",      x: 44,   y: 364, w: 290, h: 140 },
+    fe:    { el: "fe",      x: 404,  y: 46,  w: 150, h: 458 },
+    hist:  { el: "hist",    x: 606,  y: 46,  w: 390, h: 170 },
+    match: { el: "match",   x: 606,  y: 256, w: 390, h: 248 },
+    db:    { el: "db",      x: 1066, y: 46,  w: 490, h: 458 },
+  };
+  for (const k in BOX) {
+    const b = BOX[k], el = document.getElementById(b.el);
+    Object.assign(el.style, { left: b.x + "px", top: b.y + "px", width: b.w + "px", height: b.h + "px" });
+    b.node = el;
+  }
+
+  // Where a line between two boxes should attach: straight across where they
+  // overlap, otherwise centre to centre.
+  function link(a, b) {
+    const A = BOX[a], B = BOX[b];
+    const yTop = Math.max(A.y, B.y), yBot = Math.min(A.y + A.h, B.y + B.h);
+    const xL = Math.max(A.x, B.x), xR = Math.min(A.x + A.w, B.x + B.w);
+    if (yBot - yTop > 30) {
+      const y = (yTop + yBot) / 2;
+      return A.x < B.x ? [A.x + A.w, y, B.x, y] : [A.x, y, B.x + B.w, y];
+    }
+    if (xR - xL > 30) {
+      const x = (xL + xR) / 2;
+      return A.y < B.y ? [x, A.y + A.h, x, B.y] : [x, A.y, x, B.y + B.h];
+    }
+    return [A.x + A.w / 2, A.y + A.h / 2, B.x + B.w / 2, B.y + B.h / 2];
+  }
+  const LINKS = [["app", "fe"], ["wfw", "fe"], ["aw", "fe"], ["fe", "hist"], ["fe", "match"], ["hist", "match"], ["hist", "db"]];
+  const wires = document.getElementById("wires");
+  function drawWires(active) {
+    wires.innerHTML = LINKS.map(([a, b]) => {
+      const [x1, y1, x2, y2] = link(a, b);
+      const on = active && ((active[0] === a && active[1] === b) || (active[0] === b && active[1] === a));
+      return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${on ? "#10312F" : "#B7C1C1"}" stroke-width="${on ? 4 : 2.5}" stroke-linecap="round"/>`;
+    }).join("");
+  }
+
+  // ------------------------------------------------------------------
+  // State shown on the stage
+  // ------------------------------------------------------------------
+  const EVENTS = [
+    "WorkflowExecutionStarted", "WorkflowTaskScheduled", "WorkflowTaskStarted", "WorkflowTaskCompleted",
+    "ActivityTaskScheduled", "ActivityTaskStarted", "ActivityTaskCompleted", "WorkflowTaskScheduled",
+    "WorkflowTaskStarted", "WorkflowTaskCompleted", "WorkflowExecutionCompleted",
+  ];
+  let S;
+  function fresh() {
+    return {
+      events: 0, pending6: false, writes: 0, wt: "-", at: "-",
+      orders: 0, payments: 0,
+      app: "", wf: "polling orders…", wfLine: -1, wfName: "Workflow worker", crashed: false, alert: null,
+      act: "polling payments…", actRun: 0,
+      flash: null, read: false,
+    };
+  }
+
+  const evEl = document.getElementById("events");
+  evEl.innerHTML = EVENTS.map((e, i) => `<div class="ev"><span class="n">${i + 1}</span>${e}</div>`).join("");
+
+  function paint() {
+    [...evEl.children].forEach((r, i) => {
+      const on = i < S.events && !(i === 5 && S.pending6);
+      r.className = "ev" + (on ? " on" : "") + (i === 5 && S.pending6 ? " pending" : "") +
+        (S.flash && S.flash.includes(i + 1) ? " flash" : "") + (S.read && i < S.events ? " read" : "");
+    });
+    setMs("msWt", "Workflow task", S.wt);
+    setMs("msAt", "Activity task", S.at);
+    fillLane("laneOrders", S.orders, "wt", "Workflow task");
+    fillLane("lanePayments", S.payments, "at", "Activity task");
+
+    document.getElementById("appStatus").textContent = S.app;
+    document.getElementById("wfStatus").textContent = S.wf;
+    document.getElementById("wfStatus").className = "status" + (S.crashed ? " warn" : "");
+    document.getElementById("wfwName").textContent = S.wfName;
+    BOX.wfw.node.classList.toggle("crashed", S.crashed);
+    BOX.wfw.node.classList.toggle("alert-crash", S.alert === "crash");
+    BOX.wfw.node.classList.toggle("alert-start", S.alert === "start");
+    document.getElementById("wfFlag").textContent = S.alert === "crash" ? "Worker down" : S.alert === "start" ? "New pod · watch here" : "";
+    [...document.getElementById("wfCode").children].forEach((d, i) => {
+      d.classList.toggle("on", i === S.wfLine);
+    });
+    document.getElementById("actStatus").textContent = S.act;
+    document.getElementById("actBar").style.width = (S.actRun * 100).toFixed(1) + "%";
+
+    tile("mEvents", S.events - (S.pending6 ? 1 : 0), S.flash);
+    tile("mWrites", S.writes, S.flash);
+    tile("mTasks", S.orders + S.payments, null);
+  }
+  function setMs(id, label, v) {
+    const el = document.getElementById(id);
+    if (el.dataset.v !== v) { el.innerHTML = `${label}<b>${v}</b>`; el.classList.toggle("flash", el.dataset.v !== undefined && v !== "-"); el.dataset.v = v; }
+  }
+  function fillLane(id, n, cls, label) {
+    const el = document.getElementById(id);
+    if (el.children.length === n) return;
+    el.innerHTML = Array.from({ length: n }, () => `<span class="token ${cls}">${label}</span>`).join("");
+  }
+  function tile(id, v, hl) {
+    const el = document.getElementById(id);
+    el.querySelector(".v").textContent = v;
+    el.classList.toggle("hl", !!hl && id !== "mTasks");
+  }
+
+  // ------------------------------------------------------------------
+  // Hops: a labelled message travels along one link, then its effect lands
+  // ------------------------------------------------------------------
+  const H = (from, to, label, kind, fx, dwell) => ({ from, to, label, kind, fx, dwell });
+  const write = (label, fx) => H("hist", "db", label, "write", s => { s.writes++; fx(s); }, 0.5);
+
+  const START = [
+    H("app", "fe", "StartWorkflowExecution", "req", s => { s.app = "starting order-123…"; }),
+    H("fe", "hist", "StartWorkflowExecution", "req"),
+    write("write: events 1–2", s => { s.events = 2; s.wt = "Scheduled"; s.flash = [1, 2]; }),
+    H("hist", "fe", "started", "resp"),
+    H("fe", "app", "started ✓", "resp", s => { s.app = "✓ started. No workflow code has run yet."; }),
+    H("hist", "match", "AddWorkflowTask", "task", s => { s.orders = 1; s.flash = null; }),
+  ];
+  const workflowTask = (eventNo, deliverLabel, after) => [
+    H("wfw", "fe", "PollWorkflowTaskQueue", "req", s => { s.wf = "polling orders…"; s.flash = null; }),
+    H("fe", "match", "poll", "req"),
+    H("match", "hist", "RecordWorkflowTaskStarted", "req", s => { s.orders = 0; }),
+    write(`write: event ${eventNo}`, s => { s.events = eventNo; s.wt = "Started"; s.flash = [eventNo]; }),
+    H("hist", "match", "ok + history", "resp"),
+    H("match", "fe", deliverLabel, "task"),
+    H("fe", "wfw", deliverLabel, "task", after),
+  ];
+  const WF_TASK_1 = workflowTask(3, "workflow task", s => { s.wf = "running workflow code → needs ChargeCard"; s.wfLine = 1; });
+  const COMMAND = [
+    H("wfw", "fe", "RespondWorkflowTaskCompleted [ScheduleActivityTask]", "req", s => { s.wf = "waiting for the result"; s.flash = null; }),
+    H("fe", "hist", "ScheduleActivityTask", "req"),
+    write("write: events 4–5", s => { s.events = 5; s.wt = "-"; s.at = "Scheduled"; s.flash = [4, 5]; }),
+    H("hist", "match", "AddActivityTask", "atask", s => { s.payments = 1; s.flash = null; }),
+  ];
+  const ACT_START = [
+    H("aw", "fe", "PollActivityTaskQueue", "req"),
+    H("fe", "match", "poll", "req"),
+    H("match", "hist", "RecordActivityTaskStarted", "req", s => { s.payments = 0; }),
+    write("write: activity started", s => { s.events = 6; s.pending6 = true; s.at = "Started"; s.flash = [6]; }),
+    H("hist", "match", "ok", "resp"),
+    H("match", "fe", "activity task", "atask"),
+    H("fe", "aw", "activity task", "atask", s => { s.act = "running ChargeCard()…"; s.flash = null; }),
+    { run: 2.2, fx: (s, p) => { s.actRun = p; } },
+    { fx: s => { s.act = "✓ charged card, receipt r-889"; } },
+  ];
+  const ACT_DONE = [
+    H("aw", "fe", "RespondActivityTaskCompleted (receipt)", "req", s => { s.act = "polling payments…"; s.actRun = 0; }),
+    H("fe", "hist", "ActivityTaskCompleted", "req"),
+    write("write: events 6–8", s => { s.events = 8; s.pending6 = false; s.at = "-"; s.wt = "Scheduled"; s.flash = [6, 7, 8]; }),
+    H("hist", "match", "AddWorkflowTask", "task", s => { s.orders = 1; s.flash = null; }),
+  ];
+  const finish = (pre) => [
+    ...pre,
+    H("wfw", "fe", "RespondWorkflowTaskCompleted [CompleteWorkflowExecution]", "req", s => { s.wfLine = 2; s.flash = null; }),
+    H("fe", "hist", "CompleteWorkflowExecution", "req"),
+    write("write: events 10–11", s => { s.events = 11; s.wt = "-"; s.flash = [10, 11]; s.wf = "✓ workflow complete"; s.wfLine = -1; }),
+  ];
+  const FINISH = finish(workflowTask(9, "workflow task + receipt", s => { s.wf = "resumes with the receipt"; s.wfLine = 2; }));
+  const CRASH = finish([
+    { fx: s => { s.crashed = true; s.alert = "crash"; s.wf = "✗ pod killed. Everything in memory is gone."; s.wfLine = -1; }, wait: 2.4 },
+    { fx: s => { s.crashed = false; s.alert = "start"; s.wf = "new pod starting, empty memory"; }, wait: 1.6 },
+    H("wfw", "fe", "PollWorkflowTaskQueue", "req", s => { s.wf = "polling orders…"; }),
+    H("fe", "match", "poll", "req"),
+    H("match", "hist", "RecordWorkflowTaskStarted", "req", s => { s.orders = 0; }),
+    write("write: event 9", s => { s.events = 9; s.wt = "Started"; s.flash = [9]; }),
+    H("db", "hist", "read: events 1–9", "read", s => { s.read = true; s.flash = null; }),
+    H("hist", "match", "ok + full history", "resp"),
+    H("match", "fe", "workflow task + full history", "task"),
+    H("fe", "wfw", "workflow task + full history", "task", s => { s.read = false; s.wf = "replaying events 1–9…"; s.wfLine = 1; }),
+    { fx: s => { s.wf = "result read from event 7, not re-run"; }, wait: 2.0 },
+    { fx: s => { s.wfLine = 2; s.alert = null; s.wf = "caught up, runs the next line"; }, wait: 1.0 },
+  ]);
+
+  // ------------------------------------------------------------------
+  // Story
+  // ------------------------------------------------------------------
+  const STEPS = [
+    {
+      kicker: "1 · The pieces",
+      title: "Temporal orchestrates. Your workers run the code.",
+      body: "Your app and your workers talk to <em>one door</em>, the Frontend. History owns each workflow's state; Matching holds the task queues. Workers are already polling, waiting for something to do.",
+      notes: [
+        "\"The hub never executes ever. All it does is orchestrate.\"",
+        "Frontend: stateless gRPC gateway. Auth, rate limits, routing. Not a UI (the Web UI is a separate, optional service).",
+        "History: owns workflow state, split into shards by a hash of the workflow ID.",
+        "Matching: the task dispatcher. Hands tasks to workers that poll for them.",
+        "Workers long-poll: they ask \"anything on orders for me?\" and the request hangs until there is.",
+      ],
+      prior: [], hops: [],
+    },
+    {
+      kicker: "2 · Start a workflow",
+      title: "Starting a workflow is a database write",
+      body: "The Frontend routes the start to <em>History</em>, which records the first two events. Only then does History give Matching a workflow task. Your app gets \"started\" back before any workflow code has run.",
+      notes: [
+        "Correction to the whiteboard version: the start goes Frontend → History, not straight to Matching. History writes first, then a background queue processor adds the task to Matching.",
+        "Events written: 1 WorkflowExecutionStarted, 2 WorkflowTaskScheduled.",
+        "Mutable state and a transfer task are saved in the same transaction, so the task can't be lost.",
+        "Source: temporalio/temporal docs/architecture/workflow-lifecycle.md",
+      ],
+      prior: [], hops: START,
+    },
+    {
+      kicker: "3 · A worker picks it up",
+      title: "Workers pull work from Temporal",
+      body: "The workflow worker's poll is answered with the task. History records that it started, then the worker runs your workflow code until it needs an activity.",
+      notes: [
+        "\"Hey Matching service, is there anything on that task queue that's for me?\"",
+        "If a worker is already polling, Matching hands the task straight over (sync match). If nobody is polling, Matching saves it to the database as backlog.",
+        "Event 3: WorkflowTaskStarted.",
+        "\"Nothing in Temporal has actually executed code.\" The code runs in the worker box only.",
+        "Advanced: eager activity execution can hand an activity back in the same response, skipping a poll. Off the critical path for this story.",
+      ],
+      prior: [START], hops: WF_TASK_1,
+    },
+    {
+      kicker: "4 · The workflow asks for an activity",
+      title: "Calling an activity is a command, not a call",
+      body: "The worker doesn't run ChargeCard itself. It replies with a <em>ScheduleActivityTask</em> command. History records it and puts an activity task on a different queue: payments.",
+      notes: [
+        "\"We can't just run an activity. We have to request a workflow and the workflow then requests an activity.\"",
+        "Events 4–5: WorkflowTaskCompleted, ActivityTaskScheduled.",
+        "Different task queue, possibly a different worker fleet: this is the same idea as the task-queue-separation visual.",
+      ],
+      prior: [START, WF_TASK_1], hops: COMMAND,
+    },
+    {
+      kicker: "5 · The activity runs",
+      title: "The activity runs on your activity worker",
+      body: "The activity worker polls payments and gets the task. It runs ChargeCard against the real payment API. Temporal's only job here is to remember that it started.",
+      notes: [
+        "History records the start in mutable state. The ActivityTaskStarted event is held and written to history when the activity finishes, so retries don't each add an event.",
+        "This is where side effects happen, which is why activities should be safe to run more than once.",
+      ],
+      prior: [START, WF_TASK_1, COMMAND], hops: ACT_START,
+    },
+    {
+      kicker: "6 · The result goes back",
+      title: "Results go through History too",
+      body: "The activity worker reports the receipt. History writes it into the event history and schedules a new workflow task so the workflow can carry on.",
+      notes: [
+        "Events 6–8: ActivityTaskStarted, ActivityTaskCompleted (with the receipt), WorkflowTaskScheduled.",
+        "The activity result now lives in the event history. That's what makes step 8 possible.",
+      ],
+      prior: [START, WF_TASK_1, COMMAND, ACT_START], hops: ACT_DONE,
+    },
+    {
+      kicker: "7 · The workflow finishes",
+      title: "Hello World: 11 events, 7 database writes",
+      body: "One workflow with one activity produced <em>11 events</em> through <em>7 writes by History</em>. Every arrow you saw is a network hop. This is why Temporal is so sensitive to database latency.",
+      notes: [
+        "Phil's \"11 state transitions\" = these 11 history events.",
+        "\"Temporal is basically all but using the persistence layer as a dynamic queue.\"",
+        "Design guidance: don't make every function an activity. Batch work into coarser activities; each one costs at least 3 events and several writes.",
+        "The 7 is counted from Temporal's lifecycle doc (1 create + 6 updates of the workflow's state). It leaves out visibility writes and Matching backlog writes, so a real cluster does a bit more. To see real numbers, watch the persistence request rate in Grafana while you start one workflow.",
+        "Source: temporalio/temporal docs/architecture/workflow-lifecycle.md",
+      ],
+      prior: [START, WF_TASK_1, COMMAND, ACT_START, ACT_DONE], hops: FINISH,
+    },
+    {
+      kicker: "8 · Why it survives a crash",
+      title: "Kill the worker. Nothing is lost.",
+      body: "A new worker gets the <em>full event history</em> and replays your workflow code against it. ExecuteActivity finds its result in event 7, so ChargeCard is not charged twice.",
+      notes: [
+        "\"When it reconstructs its state… it's going to go to the task queue and the persistence layer… Once it knows where the state is, it can just reconstruct it on the worker side.\"",
+        "Replay is why workflow code must be deterministic: on replay it has to make the same calls in the same order.",
+        "Normally workers cache workflow state, and a per-worker sticky queue sends follow-up tasks back to the same worker. A worker without the workflow in its cache rebuilds it by replaying the event history.",
+      ],
+      prior: [START, WF_TASK_1, COMMAND, ACT_START, ACT_DONE], hops: CRASH,
+    },
+    {
+      kicker: "9 · Recap",
+      cards: [
+        ["Frontend is the only door", "Apps and workers only talk to the Frontend. One port, one place for auth and rate limits."],
+        ["History owns state", "Every step is an event, written to the database before anything else happens."],
+        ["Matching hands out tasks", "Task queues live here. Workers poll; tasks are matched to whoever asks."],
+        ["Workers run all the code", "Temporal ran zero lines. Crash a worker and another one replays from history."],
+      ],
+      notes: [
+        "Tie back to sizing: shards cap History throughput; database latency caps everything.",
+        "Tie forward to the codec server: event payloads (like the receipt) sit in this database. Encrypt them in the worker if they're sensitive.",
+      ],
+      prior: [START, WF_TASK_1, COMMAND, ACT_START, ACT_DONE, FINISH], hops: [],
+    },
+  ];
+
+  // ------------------------------------------------------------------
+  // Player
+  // ------------------------------------------------------------------
+  const stage = document.getElementById("stage");
+  let step = 0, queue = [], cur = null, paused = false, slow = true, packetEl = null;
+
+  function applyInstant(hops) {
+    for (const h of hops) {
+      if (h.fx) h.fx(S, 1);
+    }
+  }
+
+  function go(i) {
+    step = Math.max(0, Math.min(STEPS.length - 1, i));
+    const s = STEPS[step];
+    S = fresh();
+    s.prior.forEach(applyInstant);
+    S.flash = null; S.read = false;
+    queue = s.hops.slice(); cur = null;
+    if (packetEl) { packetEl.remove(); packetEl = null; }
+    for (const k in BOX) BOX[k].node.classList.remove("lit");
+    drawWires(null);
+    paint();
+    renderCaption();
+    [...document.getElementById("dots").children].forEach((d, j) => d.classList.toggle("on", j === step));
+    history.replaceState(null, "", "#step" + (step + 1));
+    if (document.getElementById("notes").classList.contains("show")) showNotes();
+  }
+
+  // Finish the current step's animation instantly (so → never skips content).
+  function finishStep() {
+    if (cur && cur.hop.fx && !cur.landed) cur.hop.fx(S, 1);
+    queue.forEach(h => h.fx && h.fx(S, 1));
+    queue = []; cur = null;
+    if (packetEl) { packetEl.remove(); packetEl = null; }
+    for (const k in BOX) BOX[k].node.classList.remove("lit");
+    drawWires(null);
+    paint();
+    renderCaption();
+  }
+
+  function stepBusy() { return !!cur || queue.length > 0; }
+
+  function startHop(h) {
+    cur = { hop: h, t: 0, landed: false };
+    if (h.from) {
+      const [x1, y1, x2, y2] = link(h.from, h.to);
+      cur.path = [x1, y1, x2, y2];
+      cur.dur = 0.45 + Math.hypot(x2 - x1, y2 - y1) / 700;
+      packetEl = document.createElement("div");
+      packetEl.className = "packet " + h.kind;
+      packetEl.textContent = h.label;
+      stage.appendChild(packetEl);
+      drawWires([h.from, h.to]);
+      BOX[h.from].node.classList.add("lit");
+    } else {
+      cur.dur = h.run || 0;
+    }
+  }
+
+  function update(dt) {
+    if (!cur && queue.length) startHop(queue.shift());
+    if (!cur) return;
+    const h = cur.hop;
+    cur.t += dt;
+    if (h.from) {
+      const p = Math.min(1, cur.t / cur.dur), e = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+      const [x1, y1, x2, y2] = cur.path;
+      packetEl.style.left = (x1 + (x2 - x1) * e) + "px";
+      packetEl.style.top = (y1 + (y2 - y1) * e) + "px";
+      if (p >= 1 && !cur.landed) {
+        cur.landed = true;
+        BOX[h.from].node.classList.remove("lit");
+        BOX[h.to].node.classList.add("lit");
+        if (h.fx) h.fx(S, 1);
+        paint();
+      }
+      if (cur.t >= cur.dur + (h.dwell ?? 0.2)) {
+        BOX[h.to].node.classList.remove("lit");
+        packetEl.remove(); packetEl = null; drawWires(null);
+        cur = null;
+        if (!stepBusy()) renderCaption();
+      }
+    } else if (h.run) {
+      h.fx(S, Math.min(1, cur.t / h.run)); paint();
+      if (cur.t >= h.run) { cur = null; }
+    } else {
+      if (!cur.landed) { cur.landed = true; h.fx(S, 1); paint(); }
+      if (cur.t >= (h.wait ?? 0.4)) { cur = null; if (!stepBusy()) renderCaption(); }
+    }
+  }
+
+  function renderCaption() {
+    const s = STEPS[step], cap = document.getElementById("caption");
+    const hint = stepBusy() ? "" : (step < STEPS.length - 1 ? "<span class=\"hint\">→ next</span>" : "");
+    if (s.cards) {
+      cap.innerHTML = `<div class="text"><div class="kicker">${s.kicker}${hint}</div>
+        <div class="cards">${s.cards.map(([h, p]) => `<div class="card"><h3>${h}</h3><p>${p}</p></div>`).join("")}</div></div>`;
+      return;
+    }
+    cap.innerHTML = `<div class="text"><div class="kicker">${s.kicker}${hint}</div><h2>${s.title}</h2><p>${s.body}</p></div>`;
+  }
+
+  // ------------------------------------------------------------------
+  // Shell
+  // ------------------------------------------------------------------
+  const app = document.getElementById("app");
+  const dotsEl = document.getElementById("dots");
+  STEPS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "dot"; b.textContent = i + 1; b.title = s.title || s.kicker;
+    b.onclick = () => go(i);
+    dotsEl.appendChild(b);
+  });
+
+  function next() { if (stepBusy()) finishStep(); else go(step + 1); }
+  function togglePause() { paused = !paused; document.getElementById("paused").classList.toggle("show", paused); }
+  function toggleSlow() { slow = !slow; document.getElementById("slowBtn").classList.toggle("on", slow); }
+  document.getElementById("slowBtn").onclick = toggleSlow;
+
+  function showNotes() {
+    const s = STEPS[step];
+    document.getElementById("notesBody").innerHTML = `<h3>Notes · ${s.kicker}</h3><ul>${s.notes.map(n => `<li>${n}</li>`).join("")}</ul>`;
+    document.getElementById("notes").classList.add("show");
+  }
+  const closeOverlays = () => document.querySelectorAll(".overlay").forEach(o => o.classList.remove("show"));
+  document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", closeOverlays));
+  document.getElementById("helpBtn").onclick = () => document.getElementById("help").classList.add("show");
+
+  document.addEventListener("keydown", e => {
+    const k = e.key;
+    if (k === "Escape") return closeOverlays();
+    if (k === "?") return document.getElementById("help").classList.add("show");
+    if (k === "n" || k === "N") { const n = document.getElementById("notes"); return n.classList.contains("show") ? closeOverlays() : showNotes(); }
+    if (k === "f" || k === "F") return document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
+    if (k === "p" || k === "P") return togglePause();
+    if (k === "d" || k === "D") return toggleSlow();
+    if (k === "r" || k === "R") return go(step);
+    if (k === "ArrowRight" || k === "PageDown" || k === " ") { e.preventDefault(); next(); }
+    else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); go(step - 1); }
+    else if (k === "Home") go(0);
+    else if (/^[1-9]$/.test(k)) go(Number(k) - 1);
+  });
+
+  function fit() {
+    const s = Math.min(innerWidth / 1600, innerHeight / 900);
+    app.style.transform = `translate(${(innerWidth - 1600 * s) / 2}px, ${(innerHeight - 900 * s) / 2}px) scale(${s})`;
+  }
+  addEventListener("resize", fit);
+  fit();
+
+  // #step3 opens a step (#step=3 also works locally); #ff=N fast-forwards N seconds (handy for screenshots).
+  const m = location.hash.match(/step=?(\d)/), ff = location.hash.match(/ff=(\d+)/);
+  go(m ? Number(m[1]) - 1 : 0);
+  if (ff) for (let i = 0; i < Number(ff[1]) * 60; i++) update(1 / 60);
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (!paused) update(slow ? dt / 2 : dt);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

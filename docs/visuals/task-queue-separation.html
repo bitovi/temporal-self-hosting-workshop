@@ -1,0 +1,1085 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task Queue Separation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Bitovi Brand Identity Guidelines v1.1 palette. Garnett / Acumin Pro are not
+     web-licensed here, so we use the guideline's Google alternate (Roboto). */
+  :root {
+    --b-red: #F3684C;
+    --b-dark-green: #10312F;
+    --b-dark-green-90: #284644;
+    --b-dark-green-70: #586F6D;
+    --b-dark-green-50: #879897;
+    --b-dark-green-30: #B7C1C1;
+    --b-dark-green-10: #E7EAEA;
+    --b-off-white: #EDEDED;
+    --b-white: #FFFFFF;
+    --b-pink: #FFA593;
+    --b-yellow: #FFD029;
+    --b-light-blue: #A9C7EA;
+    --b-light-blue-ext: #D2E2F4;
+    --b-green: #2A6562;
+    --b-green-ext: #49C4BC;
+    --b-red-tint: #FDE9E5;
+
+    --fast: var(--b-light-blue);
+    --fast-fill: var(--b-light-blue-ext);
+    --slow: var(--b-pink);
+    --slow-fill: #FBC9BF;
+    --ok: var(--b-green);
+    --warn: #B07A00;
+    --bad: #C8402A;
+
+    --font: "Roboto", "Helvetica Neue", Arial, sans-serif;
+    --mono: "Roboto Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--b-dark-green);
+    color: var(--b-dark-green);
+    font-family: var(--font);
+    overflow: hidden;
+  }
+  /* The whole deck is laid out on a fixed 1600x900 canvas and scaled to fit,
+     so it looks identical on a laptop, a projector or a shared screen. */
+  #app {
+    position: absolute; left: 0; top: 0;
+    width: 1600px; height: 900px;
+    transform-origin: 0 0;
+    background: var(--b-off-white);
+    overflow: hidden;
+  }
+
+  /* ---------- header ---------- */
+  header {
+    position: absolute; left: 0; top: 0; width: 1600px; height: 72px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 40px; background: var(--b-white);
+    border-bottom: 1px solid var(--b-dark-green-10);
+  }
+  .brand { display: flex; align-items: baseline; gap: 16px; }
+  .brand .wordmark { font-weight: 900; font-size: 26px; color: var(--b-red); letter-spacing: -0.5px; }
+  .brand .deck { font-size: 18px; color: var(--b-dark-green-70); }
+  .nav { display: flex; align-items: center; gap: 20px; }
+  .dots { display: flex; gap: 8px; }
+  .dot {
+    width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--b-dark-green-30);
+    background: transparent; color: var(--b-dark-green-70); font: 500 13px var(--font);
+    cursor: pointer; padding: 0;
+  }
+  .dot.on { background: var(--b-dark-green); border-color: var(--b-dark-green); color: var(--b-white); }
+  .seg { display: flex; border: 2px solid var(--b-dark-green); border-radius: 999px; overflow: hidden; }
+  .seg button {
+    border: 0; background: transparent; font: 500 15px var(--font); color: var(--b-dark-green);
+    padding: 7px 18px; cursor: pointer;
+  }
+  .seg button.on { background: var(--b-dark-green); color: var(--b-white); }
+  .iconbtn {
+    border: 2px solid var(--b-dark-green-30); background: transparent; border-radius: 999px;
+    font: 500 15px var(--font); color: var(--b-dark-green); padding: 6px 14px; cursor: pointer;
+  }
+
+  /* ---------- stage ---------- */
+  #stage { position: absolute; left: 0; top: 72px; width: 1600px; height: 540px; }
+  #wires { position: absolute; inset: 0; width: 1600px; height: 540px; pointer-events: none; }
+  .legend {
+    position: absolute; right: 30px; top: 12px; display: flex; gap: 22px;
+    font-size: 15px; color: var(--b-dark-green-70); align-items: center;
+  }
+  .legend i { display: inline-block; vertical-align: middle; margin-right: 8px; border-radius: 6px; height: 18px; }
+  .legend .lf { width: 18px; background: var(--fast); }
+  .legend .ls { width: 40px; background: var(--slow); }
+  .legend .clock { font-family: var(--mono); font-size: 13px; }
+
+  .source, .wfcard, .lane, .worker {
+    position: absolute; z-index: 1; border-radius: 14px; transition: border-color .3s, background .3s, opacity .4s;
+  }
+  .source {
+    background: var(--b-white); border: 2px solid var(--b-dark-green);
+    display: flex; flex-direction: column; justify-content: center; padding: 0 18px;
+  }
+  .source b { font-size: 20px; }
+  .source span { font-size: 14px; color: var(--b-dark-green-70); margin-top: 2px; }
+
+  .lane { background: var(--b-white); border: 2px dashed var(--b-dark-green-50); }
+  .lane.hot { border-color: var(--bad); background: var(--b-red-tint); }
+  .lane-label {
+    position: absolute; font: 500 15px var(--mono); color: var(--b-dark-green-70); white-space: nowrap;
+  }
+  .lane-label b { color: var(--b-dark-green); font-weight: 500; }
+  .overflow {
+    position: absolute; z-index: 3; font: 700 16px var(--font); color: var(--bad);
+    background: var(--b-white); border: 2px solid var(--bad); border-radius: 999px; padding: 2px 10px;
+  }
+
+  .worker { background: var(--b-white); border: 2px solid var(--b-dark-green); padding: 0 12px; }
+  .worker.stalled { border-color: var(--bad); box-shadow: 0 0 0 4px rgba(200,64,42,.15); }
+  .worker.fresh { animation: pop .6s ease-out; }
+  @keyframes pop { from { transform: scale(.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .worker-head {
+    height: 36px; display: flex; align-items: center; justify-content: space-between;
+    font-size: 16px; font-weight: 700;
+  }
+  .worker-head small { font: 400 13px var(--mono); color: var(--b-dark-green-70); margin-left: 10px; }
+  .worker-head .flag {
+    font: 700 12px var(--font); text-transform: uppercase; letter-spacing: .6px;
+    color: var(--b-white); background: var(--bad); border-radius: 999px; padding: 3px 10px; opacity: 0;
+    transition: opacity .3s;
+  }
+  .worker.stalled .flag { opacity: 1; }
+  .row {
+    position: relative; border-radius: 8px; background: var(--b-dark-green-10); overflow: hidden;
+  }
+  .row .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; }
+  .row .left {
+    position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+    font: 500 13px var(--mono); color: var(--b-dark-green-90);
+  }
+  .row .slotn {
+    position: absolute; left: 8px; top: 50%; transform: translateY(-50%);
+    font: 400 12px var(--mono); color: var(--b-dark-green-50);
+  }
+
+  .chip {
+    position: absolute; left: 0; top: 0; z-index: 2; border-radius: 8px; will-change: transform;
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    font: 700 13px var(--font); color: var(--b-dark-green);
+    border: 2px solid rgba(16,49,47,.25);
+  }
+  .chip.fast { background: var(--fast); }
+  .chip.slow { background: var(--slow); }
+  .chip.wf { border: 3px solid var(--b-dark-green); box-shadow: 0 0 0 3px var(--b-yellow); z-index: 4; }
+  .chip.dim { opacity: .35; }
+  .chip svg { width: 16px; height: 16px; }
+  .chip.tiny svg, .chip.tiny span { display: none; }
+  .chip.tiny { border-width: 1px; border-radius: 3px; }
+
+  .wfcard {
+    background: var(--b-white); border: 2px solid var(--b-dark-green); padding: 8px 12px;
+    box-shadow: 0 0 0 4px var(--b-yellow);
+  }
+  .wfcard h4 { margin: 0 0 6px; font-size: 16px; display: flex; justify-content: space-between; }
+  .wfcard h4 span { font: 500 12px var(--mono); color: var(--b-dark-green-70); }
+  .wfcard .act { font: 400 13px var(--mono); display: flex; justify-content: space-between; line-height: 22px; }
+  .wfcard .act b { font-weight: 500; }
+  .wfcard .act.run b::after { content: " …"; }
+  .wfcard .act.done { color: var(--ok); }
+  .wfcard .act.wait { color: var(--b-dark-green-50); }
+
+  .stage-dim #stage .chip, .stage-dim #stage .lane, .stage-dim #stage .worker,
+  .stage-dim #stage .source, .stage-dim #stage svg { opacity: .45; }
+
+  /* ---------- metrics ---------- */
+  #metrics {
+    position: absolute; left: 0; top: 612px; width: 1600px; height: 84px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 0 40px;
+  }
+  .tile {
+    background: var(--b-white); border-radius: 12px; padding: 10px 18px;
+    display: flex; flex-direction: column; justify-content: center;
+    border-left: 8px solid var(--b-dark-green-30); transition: border-color .3s;
+  }
+  .tile .v { font-size: 30px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .tile .l { font-size: 14px; color: var(--b-dark-green-70); margin-top: 4px; display: flex; justify-content: space-between; gap: 8px; }
+  .tile .l code { font: 400 12px var(--mono); color: var(--b-dark-green-50); }
+  .tile.ok { border-left-color: var(--ok); }
+  .tile.warn { border-left-color: var(--b-yellow); }
+  .tile.bad { border-left-color: var(--bad); }
+  .tile.bad .v { color: var(--bad); }
+
+  /* ---------- caption / controls ---------- */
+  #caption {
+    position: absolute; left: 0; top: 708px; width: 1600px; height: 192px;
+    background: var(--b-dark-green); color: var(--b-white);
+    padding: 22px 40px; display: flex; gap: 40px;
+  }
+  #caption .text { flex: 1 1 auto; min-width: 0; }
+  #caption .kicker { font: 500 14px var(--mono); color: var(--b-pink); letter-spacing: .5px; text-transform: uppercase; }
+  #caption h2 { margin: 6px 0 8px; font-size: 38px; font-weight: 700; letter-spacing: -.5px; }
+  #caption p { margin: 0; font-size: 21px; line-height: 1.4; color: var(--b-dark-green-10); max-width: 1000px; }
+  #caption p em { font-style: normal; color: var(--b-yellow); }
+  #caption code { font-family: var(--mono); font-size: .9em; }
+  #caption pre {
+    flex: 0 0 640px; margin: -8px 0; background: var(--b-dark-green-90); border-radius: 12px;
+    padding: 12px 16px; font: 400 13px/1.45 var(--mono); color: var(--b-white); overflow: hidden;
+  }
+  #caption pre .c { color: var(--b-dark-green-30); }
+  #caption pre .k { color: var(--b-pink); }
+  #caption pre .s { color: var(--b-yellow); }
+  .fixes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 4px; }
+  .fix { background: var(--b-dark-green-90); border-radius: 12px; padding: 12px 14px; }
+  .fix h3 { margin: 0 0 4px; font-size: 18px; color: var(--b-white); }
+  .fix h3 span { font: 500 12px var(--mono); color: var(--b-pink); margin-left: 6px; text-transform: uppercase; }
+  .fix p { font-size: 15px !important; line-height: 1.35 !important; }
+
+  .controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px 30px; width: 100%; align-content: center; }
+  .ctl label { display: flex; justify-content: space-between; font-size: 15px; color: var(--b-dark-green-10); }
+  .ctl label b { font: 500 15px var(--mono); color: var(--b-yellow); }
+  .ctl input[type=range] { width: 100%; accent-color: var(--b-red); }
+  .ctl.off { opacity: .35; pointer-events: none; }
+  .ctlbtns { display: flex; gap: 10px; align-items: center; }
+  .ctlbtns button, .ctl .seg button { color: var(--b-white); }
+  .ctlbtns button {
+    background: transparent; border: 2px solid var(--b-dark-green-50); border-radius: 999px;
+    font: 500 15px var(--font); padding: 7px 14px; cursor: pointer;
+  }
+  .ctlbtns button.primary { background: var(--b-red); border-color: var(--b-red); color: var(--b-dark-green); }
+  .ctl .seg { border-color: var(--b-dark-green-50); width: max-content; margin-top: 4px; }
+  .ctl .seg button.on { background: var(--b-white); color: var(--b-dark-green); }
+
+  /* ---------- overlays ---------- */
+  .overlay {
+    position: absolute; inset: 0; background: rgba(16,49,47,.82); display: none;
+    align-items: center; justify-content: center; z-index: 20;
+  }
+  .overlay.show { display: flex; }
+  .panel {
+    background: var(--b-white); border-radius: 16px; padding: 28px 34px; width: 980px; max-height: 760px;
+    overflow: auto; font-size: 18px; line-height: 1.5;
+  }
+  .panel h3 { margin: 0 0 12px; font-size: 24px; }
+  .panel kbd {
+    font: 500 14px var(--mono); background: var(--b-dark-green-10); border-radius: 6px; padding: 2px 8px;
+  }
+  .panel ul { margin: 0; padding-left: 22px; }
+  .panel .keys { display: grid; grid-template-columns: 220px 1fr; gap: 8px 16px; }
+  #paused {
+    position: absolute; left: 40px; top: 84px; z-index: 5; display: none;
+    font: 700 13px var(--font); letter-spacing: .8px; text-transform: uppercase;
+    background: var(--b-yellow); border-radius: 999px; padding: 4px 12px;
+  }
+  #paused.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><span class="wordmark">bitovi</span><span class="deck">Self-Hosted Temporal Workshop · Task queues &amp; stalled work</span></div>
+    <div class="nav">
+      <div class="dots" id="dots"></div>
+      <div class="seg" id="mode"><button data-mode="story" class="on">Story</button><button data-mode="sandbox">Sandbox</button></div>
+      <button class="iconbtn" id="helpBtn" title="Keyboard shortcuts (?)">?</button>
+    </div>
+  </header>
+
+  <div id="stage">
+    <svg id="wires"></svg>
+    <div class="legend">
+      <span><i class="lf"></i>fast activity <span class="clock">(ms)</span></span>
+      <span><i class="ls"></i>slow activity <span class="clock">(waiting on an API)</span></span>
+    </div>
+  </div>
+  <div id="paused">Paused · P to resume</div>
+
+  <div id="metrics">
+    <div class="tile" id="mBacklog"><div class="v">0</div><div class="l">Backlog <code>approximate_backlog_count</code></div></div>
+    <div class="tile" id="mWait"><div class="v">0.0 s</div><div class="l">Fast-task wait p95 <code>schedule_to_start_latency</code></div></div>
+    <div class="tile" id="mSlots"><div class="v">0 / 0</div><div class="l">Slots in use <code>temporal_worker_task_slots_used</code></div></div>
+    <div class="tile" id="mThru"><div class="v">0.0 /s</div><div class="l">Completed <code>last 10 s</code></div></div>
+  </div>
+
+  <div id="caption"></div>
+
+  <div class="overlay" id="help"><div class="panel">
+    <h3>Presenter keys</h3>
+    <div class="keys">
+      <span><kbd>→</kbd> <kbd>Space</kbd> <kbd>PgDn</kbd></span><span>Next step</span>
+      <span><kbd>←</kbd> <kbd>PgUp</kbd></span><span>Previous step</span>
+      <span><kbd>1</kbd>–<kbd>7</kbd></span><span>Jump to step</span>
+      <span><kbd>R</kbd></span><span>Replay the current step</span>
+      <span><kbd>P</kbd></span><span>Pause / resume the simulation</span>
+      <span><kbd>S</kbd></span><span>Toggle Story / Sandbox</span>
+      <span><kbd>B</kbd></span><span>Sandbox: send a burst of 5 slow tasks</span>
+      <span><kbd>N</kbd></span><span>Presenter notes for this step</span>
+      <span><kbd>F</kbd></span><span>Fullscreen</span>
+      <span><kbd>Esc</kbd></span><span>Close this panel</span>
+    </div>
+  </div></div>
+  <div class="overlay" id="notes"><div class="panel" id="notesBody"></div></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ------------------------------------------------------------------
+  // Geometry (virtual px on the 1600x540 stage)
+  // ------------------------------------------------------------------
+  const STAGE_W = 1600, STAGE_H = 540;
+  const LANE_X0 = 300, LANE_X1 = 900, LANE_H = 64;
+  const WK_X = 1020, WK_W = 550;
+  const SRC_X = 30, SRC_W = 200, SRC_H = 96;
+  const WF_W = 250, WF_H = 96;
+  const CHIP_H = 40, FAST_W = 40, SLOW_W = 92, CHIP_GAP = 8;
+  const BAND_TOP = 50, BAND_BOTTOM = 530;
+
+  const CLOCK_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 1.5"/></svg>';
+
+  // Deterministic randomness so every replay of a step looks the same.
+  function rng(seed) {
+    return () => {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // Simulation
+  // ------------------------------------------------------------------
+  const stage = document.getElementById("stage");
+  const wires = document.getElementById("wires");
+
+  const QUEUES = {
+    single: [{ id: "main", name: "orders" }],
+    split: [{ id: "fast", name: "orders-fast" }, { id: "slow", name: "orders-slow" }],
+  };
+
+  const sim = {
+    t: 0, nextId: 1, tasks: [], queues: [], workers: [], wfs: [], events: [],
+    cfg: null, rand: rng(7), nextArrival: 0, completions: [], waits: [],
+    layout: null, dimBackground: false,
+  };
+
+  function reset(cfg, seed = 7) {
+    for (const k of sim.tasks) k.el.remove();
+    for (const w of sim.workers) w.el.remove();
+    for (const q of sim.queues) { q.el.remove(); q.labelEl.remove(); q.overEl.remove(); }
+    for (const wf of sim.wfs) wf.el.remove();
+    stage.querySelectorAll(".source").forEach(e => e.remove());
+    Object.assign(sim, {
+      t: 0, nextId: 1, tasks: [], queues: [], workers: [], wfs: [], events: [],
+      rand: rng(seed), completions: [], waits: [], dimBackground: false, wfPanel: false,
+    });
+    sim.cfg = Object.assign({ mode: "single", rate: 2, slowPct: 0, slowDur: 15, fastDur: 0.8, workers: [{ queue: "main", slots: 3 }] }, cfg);
+    sim.nextArrival = sim.cfg.rate > 0 ? expo(sim.cfg.rate) : Infinity;
+    build();
+  }
+
+  function expo(rate) { return -Math.log(1 - sim.rand()) / rate; }
+
+  // (Re)build queues and workers from sim.cfg, keeping tasks where possible.
+  function build(freshWorkerIdx = []) {
+    const oldQueued = sim.queues.flatMap(q => q.tasks);
+    const oldRunning = sim.workers.flatMap(w => w.slots.filter(Boolean));
+    for (const w of sim.workers) w.el.remove();
+    for (const q of sim.queues) { q.el.remove(); q.labelEl.remove(); q.overEl.remove(); }
+
+    sim.queues = QUEUES[sim.cfg.mode].map(d => ({ ...d, tasks: [] }));
+    sim.workers = sim.cfg.workers
+      .filter(w => sim.queues.some(q => q.id === w.queue))
+      .map((w, i) => ({ id: i + 1, queue: w.queue, slots: new Array(w.slots).fill(null), fresh: freshWorkerIdx.includes(i) }));
+
+    // Running tasks stay running if a worker on their queue has a free slot.
+    for (const k of oldRunning) {
+      k.queue = k.pinned ? k.queue : route(k.kind);
+      const w = sim.workers.find(w => w.queue === k.queue && w.slots.includes(null));
+      if (w) { w.slots[w.slots.indexOf(null)] = k; k.worker = w; }
+      else { k.state = "queued"; k.worker = null; queueOf(k.queue).tasks.push(k); }
+    }
+    for (const k of oldQueued) {
+      k.queue = k.pinned ? k.queue : route(k.kind);
+      queueOf(k.queue)?.tasks.push(k);
+    }
+    layout();
+  }
+
+  function route(kind) {
+    if (sim.cfg.mode === "single") return "main";
+    return kind === "slow" ? "slow" : "fast";
+  }
+  function queueOf(id) { return sim.queues.find(q => q.id === id); }
+
+  function makeTask(kind, opts = {}) {
+    const k = {
+      id: sim.nextId++, kind, state: "queued",
+      dur: opts.dur ?? (kind === "slow" ? sim.cfg.slowDur : sim.cfg.fastDur * (0.7 + sim.rand() * 0.6)),
+      created: sim.t, started: null, worker: null, progress: 0,
+      queue: opts.queue ?? route(kind), pinned: !!opts.queue,
+      wf: opts.wf ?? null, label: opts.label ?? "",
+      x: opts.x ?? SRC_X + SRC_W - 20, y: opts.y ?? 0, w: kind === "slow" ? SLOW_W : FAST_W, h: CHIP_H, o: 0,
+      doneAt: null,
+    };
+    const el = document.createElement("div");
+    el.className = "chip " + kind + (k.wf ? " wf" : "");
+    el.innerHTML = (kind === "slow" ? CLOCK_SVG : "") + (k.label ? `<span>${k.label}</span>` : "");
+    stage.appendChild(el);
+    k.el = el;
+    sim.tasks.push(k);
+    return k;
+  }
+
+  // New work arrives from the source (or a workflow card) and lands on a queue.
+  function spawn(kind, opts = {}) {
+    const k = makeTask(kind, opts);
+    if (!opts.x) { k.y = sim.layout.src.y + SRC_H / 2 - CHIP_H / 2; }
+    queueOf(k.queue).tasks.push(k);
+    return k;
+  }
+
+  // Put work directly into a state (used to set up a step mid-story).
+  function enqueue(kind, n) {
+    for (let i = 0; i < n; i++) {
+      const k = makeTask(kind);
+      k.created = -sim.rand() * 3;
+      queueOf(k.queue).tasks.push(k);
+      const p = targetFor(k); Object.assign(k, { x: p.x, y: p.y, o: 1 });
+    }
+  }
+  function place(kind, workerIdx, progress, opts = {}) {
+    const w = sim.workers[workerIdx];
+    const i = w.slots.indexOf(null);
+    if (i < 0) return;
+    const k = makeTask(kind, { ...opts, queue: w.queue });
+    k.state = "running"; k.worker = w; k.started = -progress * k.dur; k.created = k.started - 0.3;
+    w.slots[i] = k;
+    const p = targetFor(k); Object.assign(k, { x: p.x, y: p.y, w: p.w, h: p.h, o: 1 });
+  }
+
+  function tick(dt) {
+    sim.t += dt;
+
+    // Scripted events for the current story step.
+    while (sim.events.length && sim.events[0].at <= sim.t) sim.events.shift().run();
+
+    // Background arrivals (Poisson).
+    while (sim.t >= sim.nextArrival) {
+      const kind = sim.rand() < sim.cfg.slowPct ? "slow" : "fast";
+      spawn(kind);
+      sim.nextArrival += expo(sim.cfg.rate);
+    }
+
+    // Workers poll only when they have a free slot (pull model).
+    for (const w of sim.workers) {
+      const q = queueOf(w.queue);
+      for (let i = 0; i < w.slots.length; i++) {
+        if (w.slots[i] || !q.tasks.length) continue;
+        const k = q.tasks.shift();
+        k.state = "running"; k.worker = w; k.started = sim.t; w.slots[i] = k;
+        if (k.kind === "fast" && !k.wf) sim.waits.push({ t: sim.t, wait: sim.t - k.created });
+      }
+    }
+
+    // Progress running work.
+    for (const w of sim.workers) {
+      for (let i = 0; i < w.slots.length; i++) {
+        const k = w.slots[i];
+        if (!k) continue;
+        k.progress = Math.min(1, (sim.t - k.started) / k.dur);
+        if (k.progress >= 1) {
+          w.slots[i] = null;
+          k.state = "done"; k.doneAt = sim.t;
+          sim.completions.push(sim.t);
+          if (k.wf) wfActivityDone(k);
+        }
+      }
+    }
+
+    // Retire finished chips once their exit animation has played.
+    sim.tasks = sim.tasks.filter(k => {
+      if (k.state === "done" && sim.t - k.doneAt > 0.8) { k.el.remove(); return false; }
+      return true;
+    });
+    const cutoff = sim.t - 15;
+    while (sim.waits.length && sim.waits[0].t < cutoff) sim.waits.shift();
+    while (sim.completions.length && sim.completions[0] < sim.t - 10) sim.completions.shift();
+  }
+
+  // ------------------------------------------------------------------
+  // Workflows (step 6): one workflow, activity A on the fast queue,
+  // then activity B on the slow queue, results return to the workflow.
+  // ------------------------------------------------------------------
+  let wfSeq = 101;
+  function startWorkflow() {
+    const wf = {
+      id: "WF-" + wfSeq++, step: 0, done: false,
+      acts: [
+        { tag: "A", name: "ChargeCard", kind: "fast", queue: "fast", state: "wait" },
+        { tag: "B", name: "AwaitVendorAPI", kind: "slow", queue: "slow", state: "wait" },
+      ],
+    };
+    wf.el = document.createElement("div");
+    wf.el.className = "wfcard";
+    stage.appendChild(wf.el);
+    sim.wfs.push(wf);
+    if (sim.wfs.length > 3) { const old = sim.wfs.shift(); old.el.remove(); }
+    layout();
+    scheduleWfActivity(wf);
+  }
+  function scheduleWfActivity(wf) {
+    const a = wf.acts[wf.step];
+    a.state = "run";
+    const g = wfGeom(wf);
+    const k = makeTask(a.kind, { queue: a.queue, wf, label: a.tag, dur: a.kind === "slow" ? 7 : 1.2, x: g.x + WF_W - 30, y: g.y + WF_H / 2 - CHIP_H / 2 });
+    queueOf(k.queue).tasks.push(k);
+    renderWf(wf);
+  }
+  function wfActivityDone(k) {
+    const wf = k.wf;
+    wf.acts[wf.step].state = "done";
+    wf.step++;
+    if (wf.step < wf.acts.length) setTimeoutSim(0.7, () => scheduleWfActivity(wf));
+    else wf.done = true;
+    renderWf(wf);
+  }
+  function renderWf(wf) {
+    const row = a => {
+      const st = a.state === "done" ? "✓" : a.state === "run" ? "running" : "next";
+      return `<div class="act ${a.state}"><b>${a.tag} · ${a.name}</b><span>${st}</span></div>`;
+    };
+    wf.el.innerHTML = `<h4>${wf.id}<span>${wf.done ? "completed" : "running"}</span></h4>${wf.acts.map(row).join("")}`;
+  }
+  function wfGeom(wf) {
+    const i = sim.wfs.indexOf(wf);
+    return { x: SRC_X, y: 150 + i * (WF_H + 18) };
+  }
+
+  function setTimeoutSim(delay, run) {
+    sim.events.push({ at: sim.t + delay, run });
+    sim.events.sort((a, b) => a.at - b.at);
+  }
+
+  // ------------------------------------------------------------------
+  // Layout + rendering
+  // ------------------------------------------------------------------
+  function layout() {
+    const qs = sim.queues;
+    const bandH = (BAND_BOTTOM - BAND_TOP) / qs.length;
+    const L = { src: { x: SRC_X, y: sim.wfPanel ? 40 : (BAND_TOP + BAND_BOTTOM) / 2 - SRC_H / 2 }, lanes: {}, workers: [] };
+
+    qs.forEach((q, qi) => {
+      const y0 = BAND_TOP + qi * bandH;
+      const lane = { x: LANE_X0, y: y0 + bandH / 2 - LANE_H / 2, w: LANE_X1 - LANE_X0, h: LANE_H };
+      L.lanes[q.id] = lane;
+
+      const ws = sim.workers.filter(w => w.queue === q.id);
+      if (!ws.length) return;
+      const rows = ws.reduce((n, w) => n + w.slots.length, 0);
+      const room = bandH - 16;
+      const PAD = 10, GAP = ws.length > 2 ? 8 : 12;
+      let HEAD = ws.length > 2 ? 28 : 36;
+      let avail = room - ws.length * (HEAD + PAD) - (ws.length - 1) * GAP;
+      const pitch = Math.min(44, avail / rows);
+      let geoms;
+      if (pitch >= 14) {
+        // One horizontal bar per slot (the "long bar" picture).
+        geoms = ws.map(w => ({ grid: false, pitch, h: HEAD + w.slots.length * pitch + PAD - 4 }));
+      } else {
+        // Too many slots for bars: switch to a grid of slot cells, as large as still fits.
+        HEAD = 28;
+        const IW = WK_W - 28, CG = 3;
+        for (let c = 40; c >= 6; c--) {
+          const cols = Math.floor((IW + CG) / (c + CG));
+          geoms = ws.map(w => ({ grid: true, cell: c, cols, h: HEAD + Math.ceil(w.slots.length / cols) * (c + CG) - CG + PAD }));
+          if (geoms.reduce((a, g) => a + g.h, 0) + (ws.length - 1) * GAP <= room) break;
+        }
+      }
+      const total = geoms.reduce((a, g) => a + g.h, 0) + (ws.length - 1) * GAP;
+      let y = y0 + bandH / 2 - total / 2;
+      ws.forEach((w, wi) => {
+        w.geom = { x: WK_X, y, w: WK_W, head: HEAD, ...geoms[wi] };
+        y += geoms[wi].h + GAP;
+      });
+    });
+    sim.layout = L;
+    renderStatic();
+  }
+
+  function renderStatic() {
+    const L = sim.layout;
+    stage.querySelectorAll(".source").forEach(e => e.remove());
+    const src = document.createElement("div");
+    src.className = "source";
+    Object.assign(src.style, px({ left: L.src.x, top: L.src.y, width: SRC_W, height: SRC_H }));
+    src.innerHTML = sim.wfPanel
+      ? "<b>Workflows</b><span>schedule activities</span>"
+      : "<b>Incoming work</b><span>workflows scheduling activities</span>";
+    stage.appendChild(src);
+
+    for (const q of sim.queues) {
+      const g = L.lanes[q.id];
+      q.el = q.el && q.el.isConnected ? q.el : document.createElement("div");
+      q.el.className = "lane";
+      Object.assign(q.el.style, px({ left: g.x, top: g.y, width: g.w, height: g.h }));
+      q.labelEl = q.labelEl && q.labelEl.isConnected ? q.labelEl : document.createElement("div");
+      q.labelEl.className = "lane-label";
+      q.labelEl.innerHTML = `task queue <b>${q.name}</b>`;
+      Object.assign(q.labelEl.style, px({ left: g.x + 4, top: g.y - 26 }));
+      q.overEl = q.overEl && q.overEl.isConnected ? q.overEl : document.createElement("div");
+      q.overEl.className = "overflow";
+      Object.assign(q.overEl.style, px({ left: g.x - 14, top: g.y + g.h - 14 }));
+      q.overEl.style.display = "none";
+      stage.prepend(q.el); stage.appendChild(q.labelEl); stage.appendChild(q.overEl);
+    }
+
+    for (const w of sim.workers) {
+      const g = w.geom;
+      if (w.el) w.el.remove();
+      w.el = document.createElement("div");
+      w.el.className = "worker" + (w.fresh ? " fresh" : "");
+      Object.assign(w.el.style, px({ left: g.x, top: g.y, width: g.w, height: g.h }));
+      const qname = queueOf(w.queue).name;
+      w.el.innerHTML = `<div class="worker-head" style="height:${g.head}px"><span>Worker ${w.id}<small>polls ${qname} · ${w.slots.length} slot${w.slots.length > 1 ? "s" : ""}</small></span><span class="flag">All slots busy</span></div>`;
+      w.rowEls = w.slots.map((_, i) => {
+        const r = document.createElement("div");
+        r.className = "row";
+        if (g.grid) {
+          Object.assign(r.style, px({ left: 12 + (i % g.cols) * (g.cell + 3), top: g.head + Math.floor(i / g.cols) * (g.cell + 3), width: g.cell, height: g.cell }));
+          r.style.position = "absolute";
+          r.style.borderRadius = "4px";
+        } else {
+          r.style.height = (g.pitch - 4) + "px";
+          r.style.marginBottom = "4px";
+        }
+        r.innerHTML = `<div class="fill"></div><span class="slotn">${!g.grid && g.pitch >= 26 ? "slot " + (i + 1) : ""}</span><span class="left"></span>`;
+        w.el.appendChild(r);
+        return { row: r, fill: r.firstChild, left: r.lastChild };
+      });
+      stage.appendChild(w.el);
+    }
+
+    for (const wf of sim.wfs) {
+      const g = wfGeom(wf);
+      Object.assign(wf.el.style, px({ left: g.x, top: g.y, width: WF_W, height: WF_H }));
+      renderWf(wf);
+    }
+    drawWires();
+  }
+
+  function drawWires() {
+    const L = sim.layout;
+    const parts = [`<defs>
+      <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#586F6D"/></marker>
+      <marker id="ahr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#2A6562"/></marker>
+    </defs>`];
+    const sx = L.src.x + SRC_W, sy = L.src.y + SRC_H / 2;
+    for (const q of sim.wfPanel ? [] : sim.queues) {
+      const g = L.lanes[q.id];
+      const ty = g.y + g.h / 2;
+      parts.push(`<path d="M${sx} ${sy} C ${sx + 40} ${sy}, ${g.x - 40} ${ty}, ${g.x - 4} ${ty}" stroke="#879897" stroke-width="2.5" fill="none" marker-end="url(#ah)"/>`);
+    }
+    let labelled = false;
+    for (const w of sim.workers) {
+      const g = L.lanes[w.queue];
+      const x1 = w.geom.x, y1 = w.geom.y + 18, x2 = g.x + g.w + 4, y2 = g.y + g.h / 2;
+      parts.push(`<path class="poll" d="M${x1} ${y1} C ${x1 - 40} ${y1}, ${x2 + 40} ${y2}, ${x2} ${y2}" stroke="#2A6562" stroke-width="2.5" stroke-dasharray="7 7" fill="none" marker-end="url(#ahr)"><animate attributeName="stroke-dashoffset" from="0" to="-28" dur="1s" repeatCount="indefinite"/></path>`);
+      if (!labelled) {
+        parts.push(`<text x="${(x1 + x2) / 2}" y="${Math.min(y1, y2) - 10}" text-anchor="middle" font-family="Roboto Mono, monospace" font-size="15" fill="#2A6562">poll</text>`);
+        labelled = true;
+      }
+    }
+    wires.innerHTML = parts.join("");
+  }
+
+  function px(o) { const r = {}; for (const k in o) r[k] = o[k] + "px"; return r; }
+
+  // Where should this task be drawn right now?
+  function targetFor(k) {
+    if (k.state === "running") {
+      const g = k.worker.geom, i = k.worker.slots.indexOf(k);
+      if (g.grid) {
+        const c = Math.max(4, g.cell - 6);
+        return { x: g.x + 2 + 12 + (i % g.cols) * (g.cell + 3) + 3, y: g.y + 2 + g.head + Math.floor(i / g.cols) * (g.cell + 3) + 3, w: c, h: c, o: 1 };
+      }
+      const h = Math.max(10, g.pitch - 12);
+      const w = k.kind === "slow" ? Math.min(SLOW_W, h * 2.3) : Math.min(FAST_W, h);
+      const left = g.pitch >= 26 ? 72 : 10;
+      return { x: g.x + 12 + left, y: g.y + g.head + i * g.pitch + (g.pitch - 4 - h) / 2, w, h, o: 1 };
+    }
+    if (k.state === "done") {
+      if (k.wf) { const g = wfGeom(k.wf); return { x: g.x + WF_W / 2, y: g.y + WF_H / 2 - 10, w: 20, h: 20, o: 0 }; }
+      return { x: STAGE_W + 20, y: k.y, w: k.w, h: k.h, o: 0 };
+    }
+    // queued: line up from the head of the lane (right side) towards the tail
+    const q = queueOf(k.queue), g = sim.layout.lanes[k.queue];
+    let x = g.x + g.w - 10;
+    for (const t of q.tasks) {
+      const tw = t.kind === "slow" ? SLOW_W : FAST_W;
+      x -= tw;
+      if (t === k) break;
+      x -= CHIP_GAP;
+    }
+    const hidden = x < g.x + 8;
+    return { x: Math.max(x, g.x + 8), y: g.y + (g.h - CHIP_H) / 2, w: k.kind === "slow" ? SLOW_W : FAST_W, h: CHIP_H, o: hidden ? 0 : 1 };
+  }
+
+  function render(dt) {
+    const a = 1 - Math.exp(-dt * 10);
+    for (const k of sim.tasks) {
+      const p = targetFor(k);
+      k.x += (p.x - k.x) * a; k.y += (p.y - k.y) * a;
+      k.w += (p.w - k.w) * a; k.h += (p.h - k.h) * a;
+      k.o += (p.o - k.o) * Math.min(1, a * 1.5);
+      const s = k.el.style;
+      s.transform = `translate(${k.x.toFixed(1)}px, ${k.y.toFixed(1)}px)`;
+      s.width = k.w.toFixed(1) + "px"; s.height = k.h.toFixed(1) + "px";
+      s.opacity = k.o.toFixed(2);
+      k.el.classList.toggle("dim", sim.dimBackground && !k.wf);
+      k.el.classList.toggle("tiny", k.h < 24);
+    }
+
+    for (const q of sim.queues) {
+      const visible = q.tasks.filter(k => targetFor(k).o > 0).length;
+      const hidden = q.tasks.length - visible;
+      q.overEl.style.display = hidden > 0 ? "block" : "none";
+      q.overEl.textContent = "+" + hidden + " more";
+      q.el.classList.toggle("hot", q.tasks.length >= 8);
+    }
+
+    for (const w of sim.workers) {
+      const q = queueOf(w.queue);
+      w.el.classList.toggle("stalled", w.slots.every(Boolean) && q.tasks.length > 3);
+      w.slots.forEach((k, i) => {
+        const r = w.rowEls[i];
+        if (!k) { r.fill.style.width = "0"; r.left.textContent = ""; return; }
+        r.fill.style.width = (k.progress * 100).toFixed(1) + "%";
+        r.fill.style.background = k.kind === "slow" ? "var(--slow-fill)" : "var(--fast-fill)";
+        r.left.textContent = k.kind === "slow" && !w.geom.grid && w.geom.pitch >= 20 ? Math.ceil(k.dur * (1 - k.progress)) + "s left" : "";
+      });
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Metrics strip
+  // ------------------------------------------------------------------
+  const M = {
+    backlog: document.getElementById("mBacklog"), wait: document.getElementById("mWait"),
+    slots: document.getElementById("mSlots"), thru: document.getElementById("mThru"),
+  };
+  function setTile(el, v, cls) {
+    el.querySelector(".v").textContent = v;
+    el.className = "tile " + (cls || "");
+  }
+  function p95(xs) {
+    if (!xs.length) return 0;
+    const s = [...xs].sort((a, b) => a - b);
+    return s[Math.min(s.length - 1, Math.floor(s.length * 0.95))];
+  }
+  function updateMetrics() {
+    const backlog = sim.queues.reduce((n, q) => n + q.tasks.length, 0);
+    setTile(M.backlog, backlog, backlog >= 10 ? "bad" : backlog >= 4 ? "warn" : "ok");
+
+    // Count fast tasks still waiting by their current age, otherwise a stall
+    // would look healthy until the stuck tasks finally start.
+    const waiting = sim.queues.flatMap(q => q.tasks).filter(k => k.kind === "fast" && !k.wf).map(k => sim.t - k.created);
+    const w = p95(sim.waits.map(x => x.wait).concat(waiting));
+    setTile(M.wait, w.toFixed(1) + " s", w >= 4 ? "bad" : w >= 1.5 ? "warn" : "ok");
+
+    const total = sim.workers.reduce((n, w) => n + w.slots.length, 0);
+    const used = sim.workers.reduce((n, w) => n + w.slots.filter(Boolean).length, 0);
+    setTile(M.slots, `${used} / ${total}`, used === total && backlog > 0 ? "bad" : used / total > 0.7 ? "warn" : "ok");
+
+    const thru = sim.completions.length / Math.min(10, Math.max(sim.t, 1));
+    setTile(M.thru, thru.toFixed(1) + " /s", "");
+  }
+
+  // ------------------------------------------------------------------
+  // Story
+  // ------------------------------------------------------------------
+  const STEPS = [
+    {
+      kicker: "1 · The setup",
+      title: "Workers pull work from a task queue",
+      body: "Temporal never runs your code. It puts tasks on a queue, and a worker polls for one <em>only when it has a free slot</em>. This worker has 3 slots. Real SDK defaults are 100 to 1,000; 3 keeps it visible.",
+      notes: [
+        "\"Temporal itself is not responsible for executing code. It's responsible for delegating that execution to our workers.\"",
+        "Pull, not push: the worker asks Matching, \"anything on the orders queue for me?\"",
+        "A slot = one task running at once. Defaults: Go 1,000; Java 200; TypeScript 100 activities; Python / .NET 100.",
+        "Fast work flows through: queue stays near empty, wait time near zero.",
+      ],
+      setup() { reset({ rate: 2.2 }); },
+    },
+    {
+      kicker: "2 · Something slow shows up",
+      title: "A long-running activity holds its slot",
+      body: "This activity is waiting on a slow vendor API. It holds a slot <em>the entire time</em>, even though it's doing nothing but waiting. Fast work still squeezes through the other two slots.",
+      notes: [
+        "Phil's original: \"Maybe it's calling an API and it's waiting on the response.\"",
+        "Same thing happens with a sleep inside an activity: the Exercise 2 five-second sleep that drops throughput.",
+        "Point at the slot bar crawling vs. fast bars flashing.",
+      ],
+      setup() {
+        reset({ rate: 2.2, slowDur: 25 });
+        sim.events.push({ at: 1.2, run: () => spawn("slow") });
+      },
+    },
+    {
+      kicker: "3 · The stall",
+      title: "Every slot is held, so fast work starves",
+      body: "Three slow activities now hold all three slots. Fast tasks pile up in the backlog even though each one takes milliseconds. <em>Nothing is broken and nothing is moving.</em> Watch the wait time climb.",
+      notes: [
+        "\"We only have three threads. So now we're blocked… nothing else can get done.\"",
+        "No errors, no crashes. The only signal is latency: schedule-to-start climbs and the backlog grows.",
+        "Ask the room: what would you do first?",
+      ],
+      setup() {
+        reset({ rate: 2.4, slowDur: 40 });
+        place("slow", 0, 0.15);
+        sim.events.push({ at: 0.6, run: () => spawn("slow") }, { at: 1.4, run: () => spawn("slow") });
+      },
+    },
+    {
+      kicker: "4 · Short-term fix",
+      title: "Scale out: add another worker to the same queue",
+      body: "A second worker drains the backlog… until more slow activities arrive and take <em>its</em> slots too. Adding workers buys time; it doesn't isolate fast work from slow work.",
+      notes: [
+        "Knowledge-check answer from the deck: short-term fix = scale the fleet.",
+        "Horizontal scaling is effortless: new worker pods just start polling.",
+        "Vertical scaling (more slots per worker) has the same limit: slow work eventually fills them.",
+      ],
+      setup() {
+        reset({ rate: 2.4, slowDur: 40, workers: [{ queue: "main", slots: 3 }] });
+        place("slow", 0, 0.3); place("slow", 0, 0.2); place("slow", 0, 0.1);
+        enqueue("fast", 9);
+        sim.events.push(
+          { at: 1.0, run: () => { sim.cfg.workers.push({ queue: "main", slots: 3 }); build([1]); } },
+          { at: 3.5, run: () => spawn("slow") },
+          { at: 4.3, run: () => spawn("slow") },
+          { at: 5.1, run: () => spawn("slow") },
+        );
+      },
+    },
+    {
+      kicker: "5 · Long-term fix",
+      title: "Separate task queues for fast and slow work",
+      body: "Route slow activities to their own queue, served by a worker with <em>far more slots</em> because it mostly waits. Fast work gets its own worker and never queues behind slow work again.",
+      notes: [
+        "\"This is the very basic, easiest parallel principle that you can put into Temporal.\"",
+        "Slow worker: lots of slots, little CPU per slot (it's waiting). Fast worker: fewer slots, scales on throughput.",
+        "Each queue now has its own backlog metric, so you can autoscale each fleet independently.",
+        "Rule of thumb: one task queue per worker type, then replicate workers as needed.",
+      ],
+      setup() {
+        reset({ mode: "split", rate: 2.4, slowPct: 0.15, slowDur: 10, workers: [{ queue: "fast", slots: 3 }, { queue: "slow", slots: 10 }] });
+        place("slow", 1, 0.6); place("slow", 1, 0.4); place("slow", 1, 0.2); place("slow", 1, 0.05);
+        sim.events.push({ at: 2.5, run: () => { spawn("slow"); } }, { at: 2.9, run: () => spawn("slow") }, { at: 3.3, run: () => spawn("slow") });
+      },
+    },
+    {
+      kicker: "6 · The key insight",
+      title: "One workflow, two queues",
+      body: "Activities from the <em>same workflow</em> can go to different queues. A runs on the fast worker, B on the slow one, and both results come back to the workflow that scheduled them.",
+      code: `<span class="c">// A inherits the workflow's queue (orders-fast)</span>
+workflow.ExecuteActivity(ctx, ChargeCard, o).Get(ctx, &amp;r1)
+<span class="c">// B is routed to the slow queue</span>
+slow := workflow.<span class="k">WithTaskQueue</span>(ctx, <span class="s">"orders-slow"</span>)
+workflow.ExecuteActivity(slow, AwaitVendorAPI, o).Get(ctx, &amp;r2)
+<span class="c">// Worker that only polls orders-slow, with many slots</span>
+worker.New(c, <span class="s">"orders-slow"</span>, worker.Options{
+  <span class="k">MaxConcurrentActivityExecutionSize</span>: 500 })`,
+      notes: [
+        "\"Task one and task two could be from the same workflow… they're just going to two different workers being executed and then coming back.\"",
+        "An activity inherits the workflow's task queue unless you set one.",
+        "Both workers must register the activities they'll be handed for their queue.",
+        "Newer SDKs offer worker tuners / slot suppliers instead of the MaxConcurrent* options. Don't set both.",
+      ],
+      setup() {
+        reset({ mode: "split", rate: 1.0, slowPct: 0.2, slowDur: 10, workers: [{ queue: "fast", slots: 3 }, { queue: "slow", slots: 10 }] });
+        sim.wfPanel = true; sim.dimBackground = true; wfSeq = 101; layout();
+        place("slow", 1, 0.5); place("slow", 1, 0.2);
+        const every = 5.5;
+        const loop = at => sim.events.push({ at, run: () => { startWorkflow(); loop(at + every); } });
+        loop(0.6);
+      },
+    },
+    {
+      kicker: "7 · Spot it, fix it",
+      title: "Four ways out of a stall",
+      fixes: [
+        ["Scale out", "short-term", "Add workers to the queue. Fast to do, but slow work can fill the new slots too."],
+        ["Scale up", "short-term", "More slots per worker via worker tuning. Check CPU and memory first."],
+        ["Split queues", "long-term", "Give slow activities their own task queue and worker fleet. Scale each on its own backlog."],
+        ["Stop holding the slot", "code", "Use a workflow timer (<code>workflow.Sleep</code>), not a sleep in an activity. Use async completion for long external waits."],
+      ],
+      notes: [
+        "Where to look on the workshop Grafana dashboard:",
+        "<code>temporal_worker_task_slots_available</code> hitting 0 on one task queue.",
+        "<code>temporal_activity_schedule_to_start_latency</code> climbing (p95).",
+        "<code>approximate_backlog_count</code> / <code>approximate_backlog_age_seconds</code> growing on the server.",
+        "Async activity completion: the activity returns ErrResultPending (Go) and frees its slot; an external system completes it later with the task token.",
+      ],
+      setup() {
+        reset({ mode: "split", rate: 2.4, slowPct: 0.15, slowDur: 10, workers: [{ queue: "fast", slots: 3 }, { queue: "slow", slots: 10 }] });
+        place("slow", 1, 0.5); place("slow", 1, 0.3); place("slow", 1, 0.1);
+      },
+    },
+  ];
+
+  // ------------------------------------------------------------------
+  // Sandbox
+  // ------------------------------------------------------------------
+  const sandbox = { mode: "single", rate: 2.5, slowPct: 15, slowDur: 15, mainWorkers: 1, mainSlots: 3, slowWorkers: 1, slowSlots: 10 };
+  try { Object.assign(sandbox, JSON.parse(localStorage.getItem("tq-sandbox") || "{}")); } catch (e) {}
+
+  function sandboxWorkers() {
+    if (sandbox.mode === "single") return Array.from({ length: sandbox.mainWorkers }, () => ({ queue: "main", slots: sandbox.mainSlots }));
+    return [
+      ...Array.from({ length: sandbox.mainWorkers }, () => ({ queue: "fast", slots: sandbox.mainSlots })),
+      ...Array.from({ length: sandbox.slowWorkers }, () => ({ queue: "slow", slots: sandbox.slowSlots })),
+    ];
+  }
+  function sandboxStart() {
+    reset({ mode: sandbox.mode, rate: sandbox.rate, slowPct: sandbox.slowPct / 100, slowDur: sandbox.slowDur, workers: sandboxWorkers() }, 11);
+  }
+  function sandboxApply(rebuild) {
+    try { localStorage.setItem("tq-sandbox", JSON.stringify(sandbox)); } catch (e) {}
+    const oldRate = sim.cfg.rate;
+    Object.assign(sim.cfg, { mode: sandbox.mode, rate: sandbox.rate, slowPct: sandbox.slowPct / 100, slowDur: sandbox.slowDur, workers: sandboxWorkers() });
+    if (oldRate !== sim.cfg.rate) sim.nextArrival = sim.t + (sim.cfg.rate > 0 ? expo(sim.cfg.rate) : Infinity);
+    if (rebuild) build();
+  }
+  function burst() { for (let i = 0; i < 5; i++) setTimeoutSim(i * 0.25, () => spawn("slow")); }
+
+  function renderSandboxControls() {
+    const cap = document.getElementById("caption");
+    const slider = (key, label, min, max, step, unit, rebuild, extra = "") =>
+      `<div class="ctl ${extra}" data-key="${key}"><label>${label}<b>${sandbox[key]}${unit}</b></label>
+        <input type="range" min="${min}" max="${max}" step="${step}" value="${sandbox[key]}" data-key="${key}" data-unit="${unit}" data-rebuild="${rebuild ? 1 : 0}"></div>`;
+    const split = sandbox.mode === "split";
+    cap.innerHTML = `<div class="controls">
+      <div class="ctl"><label>Task queues</label>
+        <div class="seg" id="sbMode"><button data-v="single" class="${split ? "" : "on"}">One shared queue</button><button data-v="split" class="${split ? "on" : ""}">Fast + slow queues</button></div></div>
+      ${slider("rate", "New activities per second", 0.5, 8, 0.5, "", false)}
+      ${slider("slowPct", "Share that are slow", 0, 60, 5, "%", false)}
+      ${slider("slowDur", "Slow activity duration", 3, 40, 1, " s", false)}
+      ${slider("mainWorkers", split ? "Fast-queue workers" : "Workers", 1, 4, 1, "", true)}
+      ${slider("mainSlots", split ? "Slots per fast worker" : "Slots per worker", 1, 8, 1, "", true)}
+      ${slider("slowWorkers", "Slow-queue workers", 1, 3, 1, "", true, split ? "" : "off")}
+      ${slider("slowSlots", "Slots per slow worker", 2, 24, 1, "", true, split ? "" : "off")}
+      <div class="ctlbtns" style="grid-column: span 4">
+        <button class="primary" id="sbBurst">Burst: 5 slow activities (B)</button>
+        <button id="sbPause">${paused ? "Resume (P)" : "Pause (P)"}</button>
+        <button id="sbReset">Reset (R)</button>
+      </div></div>`;
+    cap.querySelectorAll("input[type=range]").forEach(inp => {
+      inp.addEventListener("input", () => {
+        sandbox[inp.dataset.key] = Number(inp.value);
+        inp.previousElementSibling.querySelector("b").textContent = inp.value + inp.dataset.unit;
+        sandboxApply(inp.dataset.rebuild === "1");
+      });
+    });
+    cap.querySelectorAll("#sbMode button").forEach(b => b.addEventListener("click", () => {
+      sandbox.mode = b.dataset.v; sandboxApply(true); renderSandboxControls();
+    }));
+    document.getElementById("sbBurst").onclick = burst;
+    document.getElementById("sbPause").onclick = togglePause;
+    document.getElementById("sbReset").onclick = sandboxStart;
+  }
+
+  // ------------------------------------------------------------------
+  // Presenter shell
+  // ------------------------------------------------------------------
+  let step = 0, mode = "story", paused = false;
+  const app = document.getElementById("app");
+  const dotsEl = document.getElementById("dots");
+  STEPS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.className = "dot"; b.textContent = i + 1; b.title = s.title;
+    b.onclick = () => go(i);
+    dotsEl.appendChild(b);
+  });
+
+  function renderCaption() {
+    const s = STEPS[step], cap = document.getElementById("caption");
+    if (s.fixes) {
+      cap.innerHTML = `<div class="text"><div class="kicker">${s.kicker}</div>
+        <div class="fixes">${s.fixes.map(([h, tag, p]) => `<div class="fix"><h3>${h}<span>${tag}</span></h3><p>${p}</p></div>`).join("")}</div></div>`;
+      return;
+    }
+    cap.innerHTML = `<div class="text"><div class="kicker">${s.kicker}</div><h2>${s.title}</h2><p>${s.body}</p></div>` +
+      (s.code ? `<pre>${s.code}</pre>` : "");
+  }
+
+  function go(i) {
+    if (mode !== "story") setMode("story", true);
+    step = Math.max(0, Math.min(STEPS.length - 1, i));
+    STEPS[step].setup();
+    renderCaption();
+    app.classList.toggle("stage-dim", !!STEPS[step].fixes);
+    [...dotsEl.children].forEach((d, j) => d.classList.toggle("on", j === step));
+    history.replaceState(null, "", "#step" + (step + 1));
+    if (document.getElementById("notes").classList.contains("show")) showNotes();
+  }
+
+  function setMode(m, fromGo) {
+    mode = m;
+    document.querySelectorAll("#mode button").forEach(b => b.classList.toggle("on", b.dataset.mode === m));
+    dotsEl.style.visibility = m === "story" ? "visible" : "hidden";
+    app.classList.remove("stage-dim");
+    if (m === "sandbox") { sandboxStart(); renderSandboxControls(); history.replaceState(null, "", "#sandbox"); }
+    else if (!fromGo) go(step);
+  }
+  document.querySelectorAll("#mode button").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+
+  function togglePause() {
+    paused = !paused;
+    document.getElementById("paused").classList.toggle("show", paused);
+    const b = document.getElementById("sbPause");
+    if (b) b.textContent = paused ? "Resume (P)" : "Pause (P)";
+  }
+
+  function showNotes() {
+    const s = STEPS[step];
+    document.getElementById("notesBody").innerHTML = `<h3>Notes · ${s.kicker}</h3><ul>${s.notes.map(n => `<li>${n}</li>`).join("")}</ul>`;
+    document.getElementById("notes").classList.add("show");
+  }
+  const closeOverlays = () => document.querySelectorAll(".overlay").forEach(o => o.classList.remove("show"));
+  document.querySelectorAll(".overlay").forEach(o => o.addEventListener("click", closeOverlays));
+  document.getElementById("helpBtn").onclick = () => document.getElementById("help").classList.add("show");
+
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT" && !["p", "P", "r", "R", "b", "B", "Escape"].includes(e.key)) return;
+    const k = e.key;
+    if (k === "Escape") return closeOverlays();
+    if (k === "?") return document.getElementById("help").classList.add("show");
+    if (k === "n" || k === "N") {
+      const n = document.getElementById("notes");
+      return n.classList.contains("show") ? closeOverlays() : (mode === "story" && showNotes());
+    }
+    if (k === "f" || k === "F") return document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.();
+    if (k === "p" || k === "P") return togglePause();
+    if (k === "s" || k === "S") return setMode(mode === "story" ? "sandbox" : "story");
+    if (k === "r" || k === "R") return mode === "story" ? go(step) : sandboxStart();
+    if ((k === "b" || k === "B") && mode === "sandbox") return burst();
+    if (mode !== "story") return;
+    if (k === "ArrowRight" || k === "PageDown" || k === " ") { e.preventDefault(); go(step + 1); }
+    else if (k === "ArrowLeft" || k === "PageUp") { e.preventDefault(); go(step - 1); }
+    else if (k === "Home") go(0);
+    else if (/^[1-7]$/.test(k)) go(Number(k) - 1);
+  });
+
+  function fit() {
+    const s = Math.min(innerWidth / 1600, innerHeight / 900);
+    app.style.transform = `translate(${(innerWidth - 1600 * s) / 2}px, ${(innerHeight - 900 * s) / 2}px) scale(${s})`;
+  }
+  addEventListener("resize", fit);
+  fit();
+
+  let last = performance.now(), metricsAt = 0;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    if (!paused) tick(dt);
+    render(paused ? 0.016 : dt);
+    if (now - metricsAt > 250) { updateMetrics(); metricsAt = now; }
+    requestAnimationFrame(frame);
+  }
+
+  // #step3 opens a step (#step=3 also works locally); #ff=N fast-forwards the simulation N seconds (handy for screenshots).
+  const m = location.hash.match(/step=?(\d)/), ff = location.hash.match(/ff=(\d+)/);
+  if (location.hash.startsWith("#sandbox")) setMode("sandbox");
+  else go(m ? Number(m[1]) - 1 : 0);
+  if (ff) { for (let i = 0; i < Number(ff[1]) * 60; i++) { tick(1 / 60); render(1 / 60); } updateMetrics(); }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

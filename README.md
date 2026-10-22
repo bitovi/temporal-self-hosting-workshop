@@ -122,3 +122,15 @@ temporal workflow show --workflow-id <workflow-id> --namespace default \
 2. Open the namespace's **Codec Server** setting (in the Web UI's settings for the `default` namespace).
 3. Set the endpoint: `http://localhost:8091` if you're using desktop VS Code; if you're in a browser-based Codespace, use the forwarded URL for port 8091 instead (Ports tab → right-click port `8091` → **Copy Local Address**). Save.
 4. Reload the workflow's history — the payloads now decode live to readable JSON.
+
+## Workshop Visuals
+
+Interactive diagrams used during the workshop live in [`docs/visuals/`](docs/visuals/) and are published with GitHub Pages, so they open in any browser with no Codespace needed:
+
+- [Task queue separation](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/task-queue-separation.html): how long-running activities hold worker slots and stall fast work, and why separate task queues fix it. Includes a sandbox for "what if" questions.
+- [Request flow](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/request-flow.html): one workflow and one activity, step by step through Frontend, History, Matching and the database, including replay after a worker crash.
+- [Codec server](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/codec-server.html): why mTLS isn't enough for data residency, where the payload codec runs, and what the codec server is for. Companion to the Codec Server exercise above.
+- [History shards](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/history-shards.html): why shard count and database latency set a hard throughput ceiling, why adding History hosts doesn't raise it, and how one busy workflow creates a hot shard. Includes a sandbox.
+- [Workflows vs activities](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/workflows-vs-activities.html): what happens when things fail before, during and after an activity, why activities need idempotency keys, and why workflow code must be deterministic.
+- [Zero-downtime upgrade](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/zero-downtime-upgrade.html): upgrade the standby cluster's schema and server, hand the namespace over, then upgrade the other side, with workers running the whole time.
+- [Failover versions](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/failover-versioning.html): how multi-cluster replication stamps every event with a failover version, what failover does to it, and how conflicts after an async-replication gap are resolved.
