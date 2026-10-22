@@ -16,6 +16,7 @@ Each one is a single self-contained HTML file. Open it in a browser and present;
 ## Presenting
 
 - `→` / `Space` / `PgDn` next step, `←` / `PgUp` back, `1`–`9` jump (number of steps varies)
+- `M` opens the **All visuals** menu to jump between pages; [`index.html`](index.html) lists them all
 - `N` presenter notes, `P` pause, `R` replay step, `D` toggles half speed (on by default on the step-by-step pages), `F` fullscreen, `?` all keys
 - Task queue and shards pages: `S` switches to **Sandbox**: sliders for arrival rate, share of slow activities, workers and slots, plus a "burst" button for live "what if…" questions
 

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Temporal Workshop Visuals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --b-red: #F3684C; --b-dark-green: #10312F; --b-dark-green-70: #586F6D; --b-dark-green-50: #879897;
+    --b-dark-green-10: #E7EAEA; --b-off-white: #EDEDED; --b-white: #FFFFFF; --b-yellow: #FFD029;
+    --font: "Roboto", "Helvetica Neue", Arial, sans-serif; --mono: "Roboto Mono", ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--b-off-white); color: var(--b-dark-green); font-family: var(--font); }
+  header { background: var(--b-white); border-bottom: 1px solid var(--b-dark-green-10); padding: 20px max(16px, env(safe-area-inset-left, 0px)); }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  .brand { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+  .wordmark { font-weight: 900; font-size: 26px; color: var(--b-red); letter-spacing: -.5px; }
+  .deck { font-size: 18px; color: var(--b-dark-green-70); }
+  main { padding: 40px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); }
+  h1 { font-size: clamp(30px, 5vw, 44px); margin: 0 0 10px; letter-spacing: -.5px; text-wrap: balance; }
+  .lede { font-size: 19px; line-height: 1.5; color: var(--b-dark-green-70); max-width: 68ch; margin: 0 0 32px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .card { display: flex; flex-direction: column; gap: 6px; background: var(--b-white); border: 2px solid transparent; border-radius: 16px;
+    padding: 20px 22px; text-decoration: none; color: inherit; transition: border-color .2s, transform .2s; }
+  .card:hover, .card:focus-visible { border-color: var(--b-dark-green); transform: translateY(-2px); outline: none; }
+  .card .n { font: 500 13px var(--mono); color: var(--b-dark-green-50); }
+  .card h2 { margin: 0; font-size: 22px; }
+  .card p { margin: 0; font-size: 16px; line-height: 1.45; color: var(--b-dark-green-70); flex: 1; }
+  .card .go { margin-top: 8px; font: 500 14px var(--mono); color: var(--b-dark-green); }
+  .keys { margin-top: 36px; font-size: 15px; color: var(--b-dark-green-70); line-height: 1.7; }
+  kbd { font: 500 13px var(--mono); background: var(--b-white); border-radius: 6px; padding: 2px 8px; border: 1px solid var(--b-dark-green-10); }
+  @media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }
+</style>
+</head>
+<body>
+  <header><div class="wrap brand"><span class="wordmark">bitovi</span><span class="deck">Self-Hosted Temporal Workshop</span></div></header>
+  <main><div class="wrap">
+    <h1>Workshop visuals</h1>
+    <p class="lede">Interactive diagrams for the concepts we used to draw live on Miro. Each one steps through like a slide: press → to advance. They're in workshop order, but each stands on its own.</p>
+    <div class="grid">
+      <a class="card" href="request-flow.html"><span class="n">1</span><h2>Request flow</h2><p>One workflow and one activity through Frontend, History, Matching and the database.</p><span class="go">Open →</span></a>
+      <a class="card" href="workflows-vs-activities.html"><span class="n">2</span><h2>Workflows vs activities</h2><p>What re-runs after a failure, idempotency keys, and determinism.</p><span class="go">Open →</span></a>
+      <a class="card" href="task-queue-separation.html"><span class="n">3</span><h2>Task queue separation</h2><p>Slow activities holding worker slots, and why separate queues fix it.</p><span class="go">Open →</span></a>
+      <a class="card" href="history-shards.html"><span class="n">4</span><h2>History shards</h2><p>The shards ÷ write-latency ceiling, scaling History, and hot shards.</p><span class="go">Open →</span></a>
+      <a class="card" href="failover-versioning.html"><span class="n">5</span><h2>Failover versions</h2><p>How multi-cluster replication versions events and resolves conflicts.</p><span class="go">Open →</span></a>
+      <a class="card" href="codec-server.html"><span class="n">6</span><h2>Codec server</h2><p>Data residency, the payload codec, and what the codec server is for.</p><span class="go">Open →</span></a>
+      <a class="card" href="zero-downtime-upgrade.html"><span class="n">7</span><h2>Zero-downtime upgrade</h2><p>Schema, server, handover, then the other cluster.</p><span class="go">Open →</span></a>
+    </div>
+    <p class="keys">On every page: <kbd>→</kbd> next step · <kbd>←</kbd> back · <kbd>N</kbd> presenter notes · <kbd>M</kbd> all visuals · <kbd>F</kbd> fullscreen · <kbd>?</kbd> all keys</p>
+  </div></main>
+</body>
+</html>
