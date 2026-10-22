@@ -180,6 +180,28 @@
   }
   #paused.show { display: block; }
 </style>
+<!-- viz-nav:start -->
+<style>
+  .viz-btn { border: 2px solid var(--b-dark-green); background: transparent; border-radius: 999px;
+    font: 500 15px var(--font); color: var(--b-dark-green); padding: 6px 14px; cursor: pointer; }
+  .viz-btn.on, .viz-btn:hover { background: var(--b-dark-green); color: var(--b-white); }
+  .viz-menu { position: absolute; top: 78px; right: 40px; z-index: 30; width: 520px; background: var(--b-white);
+    border: 2px solid var(--b-dark-green); border-radius: 16px; padding: 14px; box-shadow: 0 12px 32px rgba(16,49,47,.25); }
+  .viz-menu[hidden] { display: none; }
+  .viz-menu .viz-head { display: flex; justify-content: space-between; align-items: baseline; padding: 2px 8px 10px;
+    font: 700 16px var(--font); color: var(--b-dark-green); }
+  .viz-menu .viz-head span { font: 400 12px var(--mono); color: var(--b-dark-green-70); }
+  .viz-menu a { display: grid; grid-template-columns: 26px 1fr; gap: 0 10px; padding: 9px 10px; border-radius: 10px;
+    text-decoration: none; color: var(--b-dark-green); }
+  .viz-menu a:hover, .viz-menu a:focus-visible { background: var(--b-dark-green-10); outline: none; }
+  .viz-menu a.current { background: var(--b-dark-green); color: var(--b-white); }
+  .viz-menu a .n { grid-row: span 2; font: 500 13px var(--mono); color: var(--b-dark-green-50); padding-top: 2px; }
+  .viz-menu a.current .n, .viz-menu a.current small { color: var(--b-dark-green-30); }
+  .viz-menu a b { font: 700 15px var(--font); }
+  .viz-menu a small { font: 400 13px var(--font); color: var(--b-dark-green-70); }
+  .viz-menu .viz-all { display: block; margin-top: 6px; padding: 8px 10px; font: 500 13px var(--mono); }
+</style>
+<!-- viz-nav:end -->
 </head>
 <body>
 <div id="app">
@@ -188,6 +210,7 @@
     <div class="nav">
       <div class="dots" id="dots"></div>
       <button class="iconbtn on" id="slowBtn" title="Half speed, on by default (D)">Slow</button>
+      <!-- viz-nav:start --><button class="viz-btn" id="vizBtn" title="All visuals (M)" aria-haspopup="true" aria-controls="vizMenu">All visuals</button><!-- viz-nav:end -->
       <button class="iconbtn" id="helpBtn" title="Keyboard shortcuts (?)">?</button>
     </div>
   </header>
@@ -233,6 +256,7 @@
 
   <div id="caption"></div>
 
+  <!-- viz-nav:start --><div class="viz-menu" id="vizMenu" hidden><div class="viz-head">Workshop visuals<span>M to open · Esc to close</span></div><a href="request-flow.html"><span class="n">1</span><b>Request flow</b><small>One workflow and one activity through Frontend, History, Matching and the database.</small></a><a href="workflows-vs-activities.html"><span class="n">2</span><b>Workflows vs activities</b><small>What re-runs after a failure, idempotency keys, and determinism.</small></a><a href="task-queue-separation.html"><span class="n">3</span><b>Task queue separation</b><small>Slow activities holding worker slots, and why separate queues fix it.</small></a><a href="history-shards.html"><span class="n">4</span><b>History shards</b><small>The shards ÷ write-latency ceiling, scaling History, and hot shards.</small></a><a href="failover-versioning.html" class="current" aria-current="page"><span class="n">5</span><b>Failover versions</b><small>How multi-cluster replication versions events and resolves conflicts.</small></a><a href="codec-server.html"><span class="n">6</span><b>Codec server</b><small>Data residency, the payload codec, and what the codec server is for.</small></a><a href="zero-downtime-upgrade.html"><span class="n">7</span><b>Zero-downtime upgrade</b><small>Schema, server, handover, then the other cluster.</small></a><!-- viz-nav:end -->
   <div class="overlay" id="help"><div class="panel">
     <h3>Presenter keys</h3>
     <div class="keys">
@@ -243,6 +267,7 @@
       <span><kbd>P</kbd></span><span>Pause / resume</span>
       <span><kbd>D</kbd></span><span>Toggle half speed (on by default)</span>
       <span><kbd>N</kbd></span><span>Presenter notes for this step</span>
+      <span><kbd>M</kbd></span><span>All visuals menu</span>
       <span><kbd>F</kbd></span><span>Fullscreen</span>
       <span><kbd>Esc</kbd></span><span>Close this panel</span>
     </div>
@@ -661,5 +686,25 @@
   requestAnimationFrame(frame);
 })();
 </script>
+<!-- viz-nav:start -->
+<script>
+(() => {
+  const btn = document.getElementById("vizBtn"), menu = document.getElementById("vizMenu");
+  const show = open => {
+    menu.hidden = !open;
+    btn.classList.toggle("on", open);
+    btn.setAttribute("aria-expanded", open);
+    if (open) (menu.querySelector("a.current") || menu.querySelector("a")).focus();
+  };
+  btn.addEventListener("click", e => { e.stopPropagation(); show(menu.hidden); });
+  document.addEventListener("click", e => { if (!menu.hidden && !menu.contains(e.target)) show(false); });
+  document.addEventListener("keydown", e => {
+    if (e.target.tagName === "INPUT") return;
+    if (e.key === "m" || e.key === "M") { e.preventDefault(); show(menu.hidden); }
+    else if (e.key === "Escape" && !menu.hidden) show(false);
+  });
+})();
+</script>
+<!-- viz-nav:end -->
 </body>
 </html>
