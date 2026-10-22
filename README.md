@@ -125,7 +125,7 @@ temporal workflow show --workflow-id <workflow-id> --namespace default \
 
 ## Workshop Visuals
 
-Interactive diagrams used during the workshop live in [`docs/visuals/`](docs/visuals/) and are published with GitHub Pages, so they open in any browser with no Codespace needed:
+Interactive diagrams used during the workshop live in [`docs/visuals/`](docs/visuals/) and are published with GitHub Pages at **https://bitovi.github.io/temporal-self-hosting-workshop/**, so they open in any browser with no Codespace needed. Every page has an **All visuals** menu (`M`) for moving between them:
 
 - [Task queue separation](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/task-queue-separation.html): how long-running activities hold worker slots and stall fast work, and why separate task queues fix it. Includes a sandbox for "what if" questions.
 - [Request flow](https://bitovi.github.io/temporal-self-hosting-workshop/visuals/request-flow.html): one workflow and one activity, step by step through Frontend, History, Matching and the database, including replay after a worker crash.
